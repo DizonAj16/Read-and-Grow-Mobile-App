@@ -918,10 +918,7 @@ class QuizPreviewScreen extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
-                                  q.type.name.toUpperCase().replaceAll(
-                                    '_',
-                                    ' ',
-                                  ),
+                                  q.type.displayName,
                                   style: TextStyle(
                                     color: primaryColor,
                                     fontSize: 10,

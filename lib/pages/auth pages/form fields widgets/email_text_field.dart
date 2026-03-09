@@ -1,35 +1,31 @@
 import 'package:flutter/material.dart';
 
-// EmailTextField is a reusable widget for email input with icon and styling
 class EmailTextField extends StatelessWidget {
   final String labelText;
   final IconData? prefixIcon;
   final String? hintText;
   final TextEditingController? controller;
-  final String? Function(String?)? validator; // <-- Add validator
+  final String? Function(String?)? validator; 
 
-  // Accepts label text, optional icon, optional controller, and optional validator
   const EmailTextField({
     super.key,
     required this.labelText,
     this.prefixIcon = Icons.email,
     this.hintText,
     this.controller,
-    this.validator, // <-- Add validator
+    this.validator, 
   });
 
   @override
   Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
-      validator: validator, // <-- Use validator
-      // Input decoration for consistent look and feel
+      validator: validator, 
       decoration: InputDecoration(
         labelText: labelText,
         labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface),
         filled: true,
         fillColor: const Color.fromARGB(52, 158, 158, 158),
-        // Icon at the start of the field
         prefixIcon: Icon(
           prefixIcon,
           color: Theme.of(context).colorScheme.onSurface,

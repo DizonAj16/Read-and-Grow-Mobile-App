@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../../widgets/appbar/theme_toggle_button.dart';
+import '../../../widgets/navigation/page_transition.dart';
 import '../auth buttons widgets/signup_button.dart';
 import '../form fields widgets/password_text_field.dart';
-import '../../../widgets/navigation/page_transition.dart';
 
 class StudentSignUpPage extends StatefulWidget {
   const StudentSignUpPage({super.key});
@@ -16,70 +17,68 @@ class StudentSignUpPage extends StatefulWidget {
 }
 
 class _StudentSignUpPageState extends State<StudentSignUpPage> {
-  final TextEditingController studentNameController = TextEditingController();
-  final TextEditingController studentLRNController = TextEditingController();
-  final TextEditingController sectionController = TextEditingController();
-  final TextEditingController gradeController = TextEditingController();
-  final TextEditingController studentUsernameController =
-      TextEditingController();
-  final TextEditingController studentPasswordController =
-      TextEditingController();
-  final TextEditingController confirmPasswordController =
-      TextEditingController();
-
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  // ────────────────────────────────────────────
+  // Controllers & Form
+  // ────────────────────────────────────────────
+  final _formKey = GlobalKey<FormState>();
   bool _autoValidate = false;
 
-  final List<String> _grades = ['1', '2', '3', '4', '5'];
+  final _nameController = TextEditingController();
+  final _lrnController = TextEditingController();
+  final _gradeController = TextEditingController();
+  final _sectionController = TextEditingController();
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
-  // Store the Not Set reading level ID
+  // ────────────────────────────────────────────
+  // Constants & Options
+  // ────────────────────────────────────────────
+  static const _availableGrades = ['1', '2', '3', '4', '5'];
   String? _notSetReadingLevelId;
 
   @override
   void initState() {
     super.initState();
-    // Fetch the Not Set reading level ID on initialization
-    _fetchNotSetReadingLevelId();
+    _loadNotSetReadingLevel();
   }
 
-  Future<void> _fetchNotSetReadingLevelId() async {
-    try {
-      final supabase = Supabase.instance.client;
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _lrnController.dispose();
+    _gradeController.dispose();
+    _sectionController.dispose();
+    _usernameController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
 
-      // Query the reading_levels table for level 0 (Not Set)
-      final result =
-          await supabase
+  // ────────────────────────────────────────────
+  // Data Loading
+  // ────────────────────────────────────────────
+  Future<void> _loadNotSetReadingLevel() async {
+    try {
+      final data =
+          await Supabase.instance.client
               .from('reading_levels')
               .select('id')
               .eq('level_number', 0)
               .maybeSingle();
 
-      if (result != null) {
-        setState(() {
-          _notSetReadingLevelId = result['id'] as String;
-        });
-        debugPrint('📚 Found Not Set reading level ID: $_notSetReadingLevelId');
-      } else {
-        debugPrint('⚠️ Could not find Not Set reading level (level 0)');
+      if (data != null && mounted) {
+        setState(() => _notSetReadingLevelId = data['id'] as String);
       }
     } catch (e) {
-      debugPrint('❌ Error fetching reading level ID: $e');
+      debugPrint('Error loading default reading level: $e');
     }
   }
 
-  @override
-  void dispose() {
-    studentNameController.dispose();
-    studentLRNController.dispose();
-    sectionController.dispose();
-    gradeController.dispose();
-    studentUsernameController.dispose();
-    studentPasswordController.dispose();
-    confirmPasswordController.dispose();
-    super.dispose();
-  }
-
-  Future<void> registerStudent() async {
+  // ────────────────────────────────────────────
+  // Business Logic – Registration Flow
+  // ────────────────────────────────────────────
+  Future<void> _registerStudent() async {
     if (!_formKey.currentState!.validate()) {
       setState(() => _autoValidate = true);
       return;
@@ -90,214 +89,171 @@ class _StudentSignUpPageState extends State<StudentSignUpPage> {
     try {
       final supabase = Supabase.instance.client;
 
-      final trimmedUsername = studentUsernameController.text.trim();
-      final trimmedPassword = studentPasswordController.text.trim();
-      final trimmedName = studentNameController.text.trim();
-      final trimmedLRN = studentLRNController.text.trim();
-      final trimmedGrade = gradeController.text.trim();
-      final trimmedSection = sectionController.text.trim();
+      final name = _nameController.text.trim();
+      final lrn = _lrnController.text.trim();
+      final grade = _gradeController.text.trim();
+      final section = _sectionController.text.trim();
+      final username = _usernameController.text.trim();
+      final password = _passwordController.text.trim();
 
-      // ✅ IMPORTANT: @student.app is automatically appended in the backend
-      // Students only need to enter their username
-      final authEmail = "$trimmedUsername@student.app";
+      final email = '$username@student.app';
 
-      // 1️⃣ Check if username already exists
-      final existingUser =
-          await supabase
-              .from('users')
-              .select('id')
-              .eq('username', trimmedUsername)
-              .maybeSingle();
-
-      if (existingUser != null) {
-        Navigator.of(context).pop();
-        _handleErrorDialog(
-          title: "Registration Failed",
-          message:
-              "Username already exists. Please choose a different username.",
-        );
+      // 1. Check for duplicates
+      if (await _usernameExists(username)) {
+        _showError("Username already exists. Please choose another.");
         return;
       }
 
-      // 2️⃣ Check if LRN already exists
-      final existingLRN =
-          await supabase
-              .from('students')
-              .select('id')
-              .eq('student_lrn', trimmedLRN)
-              .maybeSingle();
-
-      if (existingLRN != null) {
-        Navigator.of(context).pop();
-        _handleErrorDialog(
-          title: "Registration Failed",
-          message: "LRN already registered. Please use a different LRN.",
-        );
+      if (await _lrnExists(lrn)) {
+        _showError("LRN is already registered.");
         return;
       }
 
-      // 3️⃣ Create Supabase Auth account (using username-based email format)
+      // 2. Create auth user
       final authResponse = await supabase.auth.signUp(
-        email: authEmail,
-        password: trimmedPassword,
-        data: {"username": trimmedUsername, "name": trimmedName},
+        email: email,
+        password: password,
+        data: {'username': username, 'name': name},
       );
 
-      if (authResponse.user == null) {
-        Navigator.of(context).pop();
-        _handleErrorDialog(
-          title: "Registration Failed",
-          message: "Could not create authentication account. Please try again.",
-        );
+      final user = authResponse.user;
+      if (user == null) {
+        _showError("Failed to create authentication account.");
         return;
       }
 
-      final userId = authResponse.user!.id;
+      // 3. Insert user record
+      await supabase.from('users').insert({
+        'id': user.id,
+        'username': username,
+        'password':
+            password, // Consider: do you really need to store plain password?
+        'role': 'student',
+      });
 
+      // 4. Insert student record
+      final studentData = {
+        'id': user.id,
+        'username': username,
+        'student_name': name,
+        'student_lrn': lrn,
+        if (grade.isNotEmpty) 'student_grade': grade,
+        if (section.isNotEmpty) 'student_section': section,
+        'reading_level_updated_at': DateTime.now().toIso8601String(),
+        if (_notSetReadingLevelId != null)
+          'current_reading_level_id': _notSetReadingLevelId,
+      };
+
+      await supabase.from('students').insert(studentData);
+
+      if (!mounted) return;
+
+      Navigator.of(context, rootNavigator: true).pop();
+
+      await _showSuccessAndLoginInfoDialog(
+        username: username,
+        email: email,
+        password: password,
+      );
+    } catch (e, stack) {
+      debugPrint('Registration failed: $e\n$stack');
+
+      // Best effort rollback
       try {
-        // 4️⃣ Insert into users table with role='student'
-        await supabase.from('users').insert({
-          'id': userId,
-          'username': trimmedUsername,
-          'password': trimmedPassword,
-          'role': 'student',
-        });
-
-        // 5️⃣ Insert into students table with Not Set reading level
-        // If we couldn't fetch the reading level ID, we'll still create the student
-        // The database constraint will handle the foreign key or allow null
-        final studentData = {
-          'id': userId,
-          'username': trimmedUsername,
-          'student_name': trimmedName,
-          'student_lrn': trimmedLRN,
-          'student_grade': trimmedGrade.isNotEmpty ? trimmedGrade : null,
-          'student_section': trimmedSection.isNotEmpty ? trimmedSection : null,
-          'reading_level_updated_at': DateTime.now().toIso8601String(),
-        };
-
-        // Add reading level ID if available
-        if (_notSetReadingLevelId != null &&
-            _notSetReadingLevelId!.isNotEmpty) {
-          studentData['current_reading_level_id'] = _notSetReadingLevelId;
-          debugPrint(
-            '✅ Setting reading level to Not Set (ID: $_notSetReadingLevelId)',
-          );
-        } else {
-          debugPrint('⚠️ No reading level ID available, leaving as null');
+        final uid = Supabase.instance.client.auth.currentUser?.id;
+        if (uid != null) {
+          await Supabase.instance.client.from('users').delete().eq('id', uid);
+          await Supabase.instance.client.auth.admin.deleteUser(uid);
         }
-
-        await supabase.from('students').insert(studentData);
-
-        // Debug: Verify the student was created with correct reading level
-        if (_notSetReadingLevelId != null) {
-          final verifyResult =
-              await supabase
-                  .from('students')
-                  .select('current_reading_level_id')
-                  .eq('id', userId)
-                  .maybeSingle();
-
-          if (verifyResult != null) {
-            final readingLevelId = verifyResult['current_reading_level_id'];
-            debugPrint('✅ Verified student reading level ID: $readingLevelId');
-          }
-        }
-
-        if (mounted) {
-          Navigator.of(context).pop();
-          // Show login information dialog first
-          await _showLoginInformationDialog(
-            username: trimmedUsername,
-            email: authEmail,
-            password: trimmedPassword,
-          );
-        }
-      } catch (insertError) {
-        debugPrint('❌ Error inserting student data: $insertError');
-
-        // Rollback: Delete auth user and users record if student insert failed
-        try {
-          await supabase.from('users').delete().eq('id', userId);
-          await supabase.auth.admin.deleteUser(userId);
-        } catch (rollbackError) {
-          debugPrint('⚠️ Rollback error: $rollbackError');
-        }
-
-        if (mounted) {
-          Navigator.of(context).pop();
-          _handleErrorDialog(
-            title: "Registration Failed",
-            message: "Failed to complete registration. Please try again.",
-          );
-        }
+      } catch (rollbackErr) {
+        debugPrint('Rollback failed: $rollbackErr');
       }
-    } catch (e) {
-      Navigator.of(context).pop();
-      String errorMessage =
-          "An error occurred during registration. Please try again.";
-      final errorString = e.toString().toLowerCase();
-      if (errorString.contains('duplicate') || errorString.contains('unique')) {
-        errorMessage =
-            "Username or LRN already exists. Please use different credentials.";
-      } else if (errorString.contains('foreign key') ||
-          errorString.contains('constraint')) {
-        errorMessage = "Invalid data provided. Please check your information.";
-      } else if (errorString.contains('reading_level')) {
-        errorMessage =
-            "There was an issue setting your reading level. Please contact support.";
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context); // ensure loading is closed
       }
-      _handleErrorDialog(title: "Error", message: errorMessage);
-    }
+      _showError(
+        "Registration failed. Please try again.\n${_friendlyErrorMessage(e)}",
+      );
+    } finally {}
   }
 
+  Future<bool> _usernameExists(String username) async {
+    final res =
+        await Supabase.instance.client
+            .from('users')
+            .select('id')
+            .eq('username', username)
+            .maybeSingle();
+    return res != null;
+  }
+
+  Future<bool> _lrnExists(String lrn) async {
+    final res =
+        await Supabase.instance.client
+            .from('students')
+            .select('id')
+            .eq('student_lrn', lrn)
+            .maybeSingle();
+    return res != null;
+  }
+
+  String _friendlyErrorMessage(dynamic e) {
+    final msg = e.toString().toLowerCase();
+    if (msg.contains('duplicate') || msg.contains('unique')) {
+      return "Username or LRN already taken.";
+    }
+    if (msg.contains('constraint') || msg.contains('foreign key')) {
+      return "Invalid data provided.";
+    }
+    return "An unexpected error occurred.";
+  }
+
+  // ────────────────────────────────────────────
+  // UI – Dialogs
+  // ────────────────────────────────────────────
   void _showLoadingDialog(String message) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      barrierColor: Colors.transparent,
       builder:
-          (context) => Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Lottie.asset(
-                    'assets/animation/loading_rainbow.json',
-                    height: 90,
-                    width: 90,
-                  ),
-                  Text(
-                    message,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.surface,
-                      fontWeight: FontWeight.bold,
+          (_) => Center(
+            child: Material(
+              type: MaterialType.transparency,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Lottie.asset(
+                      'assets/animation/loading_rainbow.json',
+                      height: 80,
+                      width: 80,
                     ),
-                  ),
-                  if (_notSetReadingLevelId == null) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     Text(
-                      "Setting up reading level...",
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surface.withOpacity(0.8),
+                      message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                     ),
                   ],
-                ],
+                ),
               ),
             ),
           ),
     );
   }
 
-  Future<void> _showLoginInformationDialog({
+  Future<void> _showSuccessAndLoginInfoDialog({
     required String username,
     required String email,
     required String password,
@@ -307,866 +263,65 @@ class _StudentSignUpPageState extends State<StudentSignUpPage> {
       barrierDismissible: false,
       builder:
           (context) => AlertDialog(
-            backgroundColor: Theme.of(context).colorScheme.surface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
             contentPadding: const EdgeInsets.all(24),
             content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Success Icon
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.check_circle,
-                      color: Colors.green,
-                      size: 60,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Title
-                  Text(
-                    "Account Created Successfully!",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Important Note
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.warning_amber,
-                          color: Colors.orange,
-                          size: 24,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            "Please save your login information for future use",
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.orange[800],
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Login Information Card
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.primary.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.primary.withOpacity(0.2),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        // Email Information
-                        _buildLoginInfoRow(
-                          icon: Icons.email,
-                          label: "Login Email",
-                          value: email,
-                          isImportant: true,
-                          context: context,
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Password Information
-                        _buildLoginInfoRow(
-                          icon: Icons.lock,
-                          label: "Password",
-                          value: password,
-                          isImportant: true,
-                          context: context,
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Username Information
-                        _buildLoginInfoRow(
-                          icon: Icons.person,
-                          label: "Username",
-                          value: username,
-                          isImportant: false,
-                          context: context,
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Copy Button
-                        OutlinedButton.icon(
-                          onPressed: () {
-                            Clipboard.setData(
-                              ClipboardData(
-                                text: "Email: $email\nPassword: $password",
-                              ),
-                            );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  "Login information copied to clipboard!",
-                                ),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                          },
-                          icon: Icon(Icons.copy, size: 18),
-                          label: Text("Copy Login Info"),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor:
-                                Theme.of(context).colorScheme.primary,
-                            side: BorderSide(
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Instructions
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue[100]!),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.info, color: Colors.blue, size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              "Important Instructions:",
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue[800],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _buildInstructionItem(
-                          "1. Use the email and password above to log in",
-                          context,
-                        ),
-                        _buildInstructionItem(
-                          "2. You cannot change your email format (@student.app is fixed)",
-                          context,
-                        ),
-                        _buildInstructionItem(
-                          "3. Save this information in a secure place",
-                          context,
-                        ),
-                        _buildInstructionItem(
-                          "4. Contact your teacher if you forget your password",
-                          context,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Proceed Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        _proceedToLogin();
-                      },
-                      icon: Icon(Icons.login, size: 20),
-                      label: Text(
-                        "Proceed to Login",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              child: SuccessLoginInfoContent(
+                username: username,
+                email: email,
+                password: password,
+                onProceed: () {
+                  Navigator.of(context, rootNavigator: true).pop();
+                  _goToLogin();
+                },
               ),
             ),
           ),
     );
   }
 
-  Widget _buildLoginInfoRow({
-    required IconData icon,
-    required String label,
-    required String value,
-    required bool isImportant,
-    required BuildContext context,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color:
-                isImportant
-                    ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-                    : Colors.grey.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            icon,
-            color:
-                isImportant
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.grey,
-            size: 20,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isImportant ? Colors.yellow.withOpacity(0.1) : null,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color:
-                        isImportant
-                            ? Colors.orange.withOpacity(0.3)
-                            : Colors.grey.withOpacity(0.3),
-                  ),
-                ),
-                child: Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight:
-                        isImportant ? FontWeight.bold : FontWeight.normal,
-                    color:
-                        isImportant
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.grey[800],
-                  ),
-                ),
-              ),
-              if (isImportant) ...[
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Icon(Icons.warning_amber, color: Colors.orange, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      "Important: Save this information",
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.orange[800],
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInstructionItem(String text, BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(width: 24),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[700],
-                height: 1.4,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _proceedToLogin() async {
-    // Show a brief success animation before navigating
-    await _showBriefSuccessDialog();
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        PageTransition(page: LoginPage(loginType: LoginType.student)),
-      );
-    }
-  }
-
-  Future<void> _showBriefSuccessDialog() async {
-    // Create a simple success dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black.withOpacity(0.3),
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          contentPadding: const EdgeInsets.all(25),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.check_circle, color: Colors.green, size: 70),
-              const SizedBox(height: 15),
-              Text(
-                "Success!",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                "Redirecting to Login...",
-                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (mounted) {
-      Navigator.of(context, rootNavigator: true).pop();
-    }
-  }
-
-  void _handleErrorDialog({required String title, required String message}) {
+  void _showError(String message, {String title = "Registration Failed"}) {
     if (!mounted) return;
+    Navigator.pop(context); // close loading if open
+
     showDialog(
       context: context,
       builder:
-          (context) => AlertDialog(
+          (_) => AlertDialog(
             title: Row(
               children: [
-                const Icon(Icons.error, color: Colors.red, size: 30),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                const Icon(Icons.error, color: Colors.red, size: 28),
+                const SizedBox(width: 12),
+                Text(title, style: const TextStyle(color: Colors.red)),
               ],
             ),
-            content: Text(
-              message,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            content: Text(message),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(
-                  'OK',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
+                onPressed: Navigator.of(context).pop,
+                child: const Text('OK'),
               ),
             ],
           ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) => Column(
-    children: [
-      const SizedBox(height: 40),
-      // Instruction banner for @student.app
-      Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.info_outline, color: Colors.white, size: 24),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Important Note",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    "@student.app is automatically added in the backend.\nJust enter your username for login!",
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 14,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 30),
-      CircleAvatar(
-        radius: 80,
-        backgroundColor: Theme.of(context).colorScheme.onPrimary,
-        child: Image.asset('assets/icons/graduating-student.png', width: 115),
-      ),
-      const SizedBox(height: 10),
-      Text(
-        "Student Sign Up",
-        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-          color: Theme.of(context).colorScheme.onPrimary,
-          fontWeight: FontWeight.bold,
-        ),
-        textAlign: TextAlign.center,
-      ),
-      const SizedBox(height: 8),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 40),
-        child: Text(
-          "Create your account to start your reading journey",
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onPrimary.withOpacity(0.9),
-            fontSize: 14,
-            fontStyle: FontStyle.italic,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ),
-      const SizedBox(height: 60),
-    ],
-  );
+  Future<void> _goToLogin() async {
+    if (!mounted) return;
 
-  Widget _buildSignUpForm(BuildContext context) => Form(
-    key: _formKey,
-    autovalidateMode:
-        _autoValidate ? AutovalidateMode.always : AutovalidateMode.disabled,
-    child: Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 20),
-          _buildTextField(
-            controller: studentNameController,
-            label: "Full Name",
-            icon: Icons.person,
-            hintText: "e.g. Maria Santos",
-            validator:
-                (value) =>
-                    value == null || value.trim().isEmpty
-                        ? 'Full Name is required'
-                        : null,
-          ),
-          const SizedBox(height: 20),
-          _buildTextField(
-            controller: studentLRNController,
-            label: "LRN",
-            icon: Icons.confirmation_number,
-            hintText: "e.g. 123456789012",
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'LRN is required';
-              }
-              if (!RegExp(r'^\d{12}$').hasMatch(value.trim())) {
-                return 'LRN must be exactly 12 digits';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 20),
-          DropdownButtonFormField<String>(
-            value:
-                gradeController.text.isNotEmpty ? gradeController.text : null,
-            items:
-                _grades
-                    .map(
-                      (grade) => DropdownMenuItem(
-                        value: grade,
-                        child: Text("Grade $grade"),
-                      ),
-                    )
-                    .toList(),
-            onChanged: (value) {
-              setState(() => gradeController.text = value ?? '');
-            },
-            validator:
-                (value) =>
-                    value == null || value.isEmpty ? 'Grade is required' : null,
-            decoration: _dropdownDecoration(context),
-          ),
-          const SizedBox(height: 20),
-          _buildTextField(
-            controller: sectionController,
-            label: "Section",
-            icon: Icons.group,
-            hintText: "e.g. Section A",
-            validator:
-                (value) =>
-                    value == null || value.trim().isEmpty
-                        ? 'Section is required'
-                        : null,
-          ),
-          const SizedBox(height: 20),
-          // Enhanced Username field with @student.app instruction
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextFormField(
-                controller: studentUsernameController,
-                decoration: InputDecoration(
-                  labelText: "Username",
-                  hintText: "Enter your username (no @student.app needed)",
-                  prefixIcon: Icon(
-                    Icons.account_circle,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                  filled: true,
-                  fillColor: const Color.fromARGB(52, 158, 158, 158),
-                  border: const OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(12)),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Username is required';
-                  }
-
-                  String input = value.trim();
-                  if (input.contains('@')) {
-                    if (input.endsWith('@student.app')) {
-                      return 'Do not include @student.app. Just enter your username.';
-                    }
-                    return 'Just enter your username. "@student.app" is added automatically.';
-                  }
-
-                  // Check for valid username format
-                  if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(input)) {
-                    return 'Username can only contain letters, numbers, and underscores';
-                  }
-
-                  return null;
-                },
-              ),
-              // Helper text explaining the backend auto-append
-              Padding(
-                padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.auto_awesome,
-                      size: 14,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      "@student.app will be automatically added by the system",
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withOpacity(0.6),
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          PasswordTextField(
-            labelText: "Password",
-            controller: studentPasswordController,
-            hintText: "At least 6 characters",
-            validator:
-                (value) =>
-                    value == null || value.trim().isEmpty
-                        ? 'Password is required'
-                        : null,
-          ),
-          const SizedBox(height: 20),
-          PasswordTextField(
-            labelText: "Confirm Password",
-            controller: confirmPasswordController,
-            hintText: "Re-enter your password",
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Confirm Password is required';
-              }
-              if (value != studentPasswordController.text) {
-                return 'Passwords do not match';
-              }
-              return null;
-            },
-          ),
-          // Login format explanation box
-          Container(
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.only(top: 10, bottom: 10),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                width: 1,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.arrow_forward,
-                      size: 16,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      "How login works:",
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  "You enter: mariasantos\nYou login with: mariasantos@student.app",
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withOpacity(0.7),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Show reading level info
-          if (_notSetReadingLevelId != null)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "Your reading level will be set to 'Not Set' initially",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurface,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          SizedBox(height: _notSetReadingLevelId != null ? 10 : 0),
-          SignUpButton(text: "Sign Up", onPressed: registerStudent),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                "Already have an account?",
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    PageTransition(
-                      page: LoginPage(loginType: LoginType.student),
-                    ),
-                  );
-                },
-                child: Text(
-                  "Log In",
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
-  );
-
-  InputDecoration _dropdownDecoration(BuildContext context) => InputDecoration(
-    labelText: "Grade",
-    hintText: "Select your grade",
-    hintStyle: TextStyle(
-      fontStyle: FontStyle.italic,
-      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-    ),
-    labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-    filled: true,
-    fillColor: const Color.fromARGB(52, 158, 158, 158),
-    prefixIcon: Icon(
-      Icons.grade,
-      color: Theme.of(context).colorScheme.onSurface,
-    ),
-    border: const OutlineInputBorder(
-      borderRadius: BorderRadius.all(Radius.circular(12)),
-      borderSide: BorderSide.none,
-    ),
-  );
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    String? hintText,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hintText,
-        hintStyle: TextStyle(
-          fontStyle: FontStyle.italic,
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-        ),
-        labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-        filled: true,
-        fillColor: const Color.fromARGB(52, 158, 158, 158),
-        prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.onSurface),
-        border: const OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
-          borderSide: BorderSide.none,
-        ),
-      ),
-      validator: validator,
+    // Use pushAndRemoveUntil to clear the navigation stack
+    Navigator.pushAndRemoveUntil(
+      context,
+      PageTransition(page: const LoginPage(loginType: LoginType.student)),
+      (route) => false, // This removes all previous routes
     );
   }
 
-  Widget _buildBackground(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        colors: [
-          Theme.of(context).colorScheme.primary,
-          Theme.of(context).colorScheme.secondary,
-        ],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ),
-    ),
-  );
-
+  // ────────────────────────────────────────────
+  // Build
+  // ────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1181,15 +336,418 @@ class _StudentSignUpPageState extends State<StudentSignUpPage> {
       ),
       body: Stack(
         children: [
-          _buildBackground(context),
-          SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 20),
-            child: Column(
-              children: [_buildHeader(context), _buildSignUpForm(context)],
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.secondary,
+                ],
+              ),
+            ),
+          ),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Column(
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 24),
+                  _buildFormCard(),
+                ],
+              ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Column(
+      children: [
+        const SizedBox(height: 20),
+        _buildInfoBanner(),
+        const SizedBox(height: 32),
+        CircleAvatar(
+          radius: 70,
+          backgroundColor: Colors.white.withOpacity(0.9),
+          child: Image.asset('assets/icons/graduating-student.png', width: 100),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          "Student Sign Up",
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          "Create your account to begin your reading journey",
+          style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 15),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 40),
+      ],
+    );
+  }
+
+  Widget _buildInfoBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white24, width: 1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, color: Colors.white70, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  "Important",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  "Just enter your desired username.\n@student.app is added automatically.",
+                  style: TextStyle(color: Colors.white70, height: 1.3),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormCard() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: Form(
+        key: _formKey,
+        autovalidateMode:
+            _autoValidate ? AutovalidateMode.always : AutovalidateMode.disabled,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildNameField(),
+            const SizedBox(height: 20),
+            _buildLrnField(),
+            const SizedBox(height: 20),
+            _buildGradeDropdown(),
+            const SizedBox(height: 20),
+            _buildSectionField(),
+            const SizedBox(height: 24),
+            _buildUsernameField(),
+            const SizedBox(height: 20),
+            PasswordTextField(
+              labelText: "Password",
+              controller: _passwordController,
+              validator: (v) => v?.trim().isEmpty ?? true ? 'Required' : null,
+            ),
+            const SizedBox(height: 20),
+            PasswordTextField(
+              labelText: "Confirm Password",
+              controller: _confirmPasswordController,
+              validator: (v) {
+                if (v?.trim().isEmpty ?? true) return 'Required';
+                if (v != _passwordController.text)
+                  return "Passwords don't match";
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildReadingLevelNote(),
+            const SizedBox(height: 24),
+            SignUpButton(text: "Sign Up", onPressed: _registerStudent),
+            const SizedBox(height: 16),
+            _buildLoginLink(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Form Fields ────────────────────────────────────────
+
+  Widget _buildNameField() => _textFormField(
+    controller: _nameController,
+    label: "Full Name",
+    icon: Icons.person,
+    hint: "e.g. Juan Dela Cruz",
+    validator: (v) => v?.trim().isEmpty ?? true ? 'Required' : null,
+  );
+
+  Widget _buildLrnField() => _textFormField(
+    controller: _lrnController,
+    label: "Learner Reference Number (LRN)",
+    icon: Icons.confirmation_number,
+    hint: "12-digit number",
+    validator: (v) {
+      final val = v?.trim();
+      if (val == null || val.isEmpty) return 'Required';
+      if (!RegExp(r'^\d{12}$').hasMatch(val)) {
+        return 'Must be exactly 12 digits';
+      }
+      return null;
+    },
+  );
+
+  Widget _buildGradeDropdown() => DropdownButtonFormField<String>(
+    value: _gradeController.text.isNotEmpty ? _gradeController.text : null,
+    items:
+        _availableGrades
+            .map((g) => DropdownMenuItem(value: g, child: Text("Grade $g")))
+            .toList(),
+    onChanged: (v) => setState(() => _gradeController.text = v ?? ''),
+    validator: (v) => v == null ? 'Required' : null,
+    decoration: InputDecoration(
+      labelText: "Grade Level",
+      prefixIcon: const Icon(Icons.school),
+      filled: true,
+      fillColor: Colors.grey.withOpacity(0.08),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+    ),
+  );
+
+  Widget _buildSectionField() => _textFormField(
+    controller: _sectionController,
+    label: "Section",
+    icon: Icons.group,
+    hint: "e.g. Rose, Section A",
+    validator: (v) => v?.trim().isEmpty ?? true ? 'Required' : null,
+  );
+
+  Widget _buildUsernameField() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _textFormField(
+        controller: _usernameController,
+        label: "Username",
+        icon: Icons.account_circle,
+        hint: "e.g. juandelacruz123",
+        validator: (v) {
+          final val = v?.trim();
+          if (val == null || val.isEmpty) return 'Required';
+          if (val.contains('@')) {
+            return "Don't include @student.app";
+          }
+          if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(val)) {
+            return 'Letters, numbers, underscore only';
+          }
+          return null;
+        },
+      ),
+      Padding(
+        padding: const EdgeInsets.only(left: 12, top: 6),
+        child: Text(
+          "→ Login as: yourusername@student.app",
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      ),
+    ],
+  );
+
+  Widget _buildReadingLevelNote() {
+    if (_notSetReadingLevelId == null) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 18,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "Initial reading level: Not Set",
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoginLink() => Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Text("Already have an account?  "),
+      TextButton(
+        onPressed:
+            () => Navigator.push(
+              context,
+              PageTransition(
+                page: const LoginPage(loginType: LoginType.student),
+              ),
+            ),
+        child: const Text("Sign In"),
+      ),
+    ],
+  );
+
+  Widget _textFormField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? hint,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        prefixIcon: Icon(icon),
+        filled: true,
+        fillColor: Colors.grey.withOpacity(0.06),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+      ),
+      validator: validator,
+    );
+  }
+}
+
+// ────────────────────────────────────────────
+// Extracted Widget: Success + Login Info
+// ────────────────────────────────────────────
+class SuccessLoginInfoContent extends StatelessWidget {
+  final String username;
+  final String email;
+  final String password;
+  final VoidCallback onProceed;
+
+  const SuccessLoginInfoContent({
+    super.key,
+    required this.username,
+    required this.email,
+    required this.password,
+    required this.onProceed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(Icons.check_circle, color: Colors.green, size: 64),
+        const SizedBox(height: 16),
+        const Text(
+          "Account Created!",
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 24),
+        _infoCard(context),
+        const SizedBox(height: 24),
+        ElevatedButton.icon(
+          onPressed: onProceed,
+          icon: const Icon(Icons.login),
+          label: const Text("Go to Login"),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size.fromHeight(52),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _infoCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _infoRow(Icons.email, "Email", email, true),
+          const Divider(height: 24),
+          _infoRow(Icons.lock, "Password", password, true),
+          const Divider(height: 24),
+          _infoRow(Icons.person, "Username", username, false),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String label, String value, bool important) {
+    return Row(
+      children: [
+        Icon(icon, color: important ? Colors.blue : Colors.grey, size: 22),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(color: Colors.grey[700], fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: TextStyle(
+                  fontWeight: important ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

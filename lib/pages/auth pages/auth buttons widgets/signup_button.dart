@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-// SignUpButton is a styled elevated button for sign up actions
 class SignUpButton extends StatelessWidget {
   final String text;
   final VoidCallback onPressed;

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:deped_reading_app_laravel/pages/teacher%20pages/reading_materials_grading_page.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -12,47 +11,9 @@ import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../api/reading_materials_service.dart';
-import '../../utils/file_validator.dart';
 
 // NEW: Audio File Manager Class for handling persistent storage
 class _AudioFileManager {
-  static Future<File> saveTemporaryRecording(String tempPath) async {
-    final originalFile = File(tempPath);
-
-    if (!await originalFile.exists()) {
-      throw Exception('Original recording file not found at: $tempPath');
-    }
-
-    // Check file size
-    final length = await originalFile.length();
-    if (length == 0) {
-      throw Exception('Original recording file is empty');
-    }
-
-    // Save to app's documents directory for persistence
-    final appDir = await getApplicationDocumentsDirectory();
-    final persistentDir = Directory('${appDir.path}/teacher_recordings');
-
-    if (!await persistentDir.exists()) {
-      await persistentDir.create(recursive: true);
-    }
-
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final persistentPath = '${persistentDir.path}/recording_$timestamp.m4a';
-
-    // Copy to persistent location
-    await originalFile.copy(persistentPath);
-
-    // Delete the original temp file
-    try {
-      await originalFile.delete();
-    } catch (e) {
-      debugPrint('Could not delete temp file: $e');
-    }
-
-    return File(persistentPath);
-  }
-
   static Future<void> cleanupOldRecordings({int keepLast = 5}) async {
     try {
       final appDir = await getApplicationDocumentsDirectory();
@@ -244,18 +205,6 @@ class _TeacherReadingMaterialsPageState
             _audioCurrentDuration = Duration.zero;
           });
         }
-      }
-    });
-  }
-
-  void _startAudioRecordingTimer() {
-    _audioRecordingTimer?.cancel();
-    _audioRecordingSeconds = 0;
-    _audioRecordingTimer = Timer.periodic(Duration(seconds: 1), (timer) {
-      if (mounted) {
-        setState(() {
-          _audioRecordingSeconds = timer.tick;
-        });
       }
     });
   }
@@ -3362,18 +3311,24 @@ class _TeacherReadingMaterialsPageState
   }
 }
 
-// Create this widget class
 class PdfPreviewWithAudioScreen extends StatefulWidget {
   final String pdfUrl;
+
   final String? audioUrl;
+
   final String title;
+
   final Color primaryColor;
 
   const PdfPreviewWithAudioScreen({
     super.key,
+
     required this.pdfUrl,
-    required this.audioUrl,
+
+    this.audioUrl,
+
     required this.title,
+
     required this.primaryColor,
   });
 
@@ -3383,233 +3338,346 @@ class PdfPreviewWithAudioScreen extends StatefulWidget {
 }
 
 class _PdfPreviewWithAudioScreenState extends State<PdfPreviewWithAudioScreen> {
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  final _audioPlayer = AudioPlayer();
+
   bool _isPlaying = false;
-  Duration _currentDuration = Duration.zero;
-  Duration _totalDuration = Duration.zero;
+
+  bool _isBuffering = false;
+
+  bool _hasError = false;
+
+  Duration _position = Duration.zero;
+
+  Duration _duration = Duration.zero;
+
+  bool _isFullscreen = false;
 
   @override
   void initState() {
     super.initState();
-    _setupAudioPlayerListeners();
+
+    _initAudio();
+  }
+
+  Future<void> _initAudio() async {
+    if (widget.audioUrl == null || widget.audioUrl!.isEmpty) return;
+
+    try {
+      // ── Modern just_audio syntax ──
+      final audioSource =
+          widget.audioUrl!.startsWith('http')
+              ? AudioSource.uri(Uri.parse(widget.audioUrl!))
+              : AudioSource.file(File(widget.audioUrl!) as String);
+
+      await _audioPlayer.setAudioSource(audioSource, preload: true);
+      await _audioPlayer.load();
+
+      // Position & duration
+      _audioPlayer.positionStream.listen((pos) {
+        if (mounted) setState(() => _position = pos);
+      });
+
+      _audioPlayer.durationStream.listen((dur) {
+        if (mounted) setState(() => _duration = dur ?? Duration.zero);
+      });
+
+      // Core state sync
+      _audioPlayer.playerStateStream.listen((playerState) {
+        if (!mounted) return;
+
+        final playing = playerState.playing;
+        final processing = playerState.processingState;
+
+        setState(() {
+          _isPlaying =
+              playing &&
+              processing != ProcessingState.completed &&
+              processing != ProcessingState.idle;
+          _isBuffering = processing == ProcessingState.buffering;
+          _hasError =
+              (processing == ProcessingState.idle &&
+                  !playing &&
+                  _duration > Duration.zero);
+        });
+      });
+    } catch (e, stack) {
+      debugPrint("Audio init failed: $e\n$stack");
+      if (mounted) {
+        setState(() => _hasError = true);
+      }
+    }
+  }
+
+  Future<void> _togglePlayback() async {
+    try {
+      if (_audioPlayer.playing) {
+        await _audioPlayer.pause();
+      } else {
+        // If finished → restart from beginning
+
+        if (_audioPlayer.processingState == ProcessingState.completed) {
+          await _audioPlayer.seek(Duration.zero);
+        }
+
+        await _audioPlayer.play();
+      }
+
+      // No setState here — stream will update UI
+    } catch (e) {
+      debugPrint("Playback control error: $e");
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Playback error: $e")));
+      }
+    }
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes.toString().padLeft(2, '0');
+
+    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+
+    return '$minutes:$seconds';
   }
 
   @override
   void dispose() {
     _audioPlayer.dispose();
+
     super.dispose();
-  }
-
-  void _setupAudioPlayerListeners() {
-    _audioPlayer.positionStream.listen((position) {
-      if (mounted) {
-        setState(() {
-          _currentDuration = position;
-        });
-      }
-    });
-
-    _audioPlayer.durationStream.listen((duration) {
-      if (mounted) {
-        setState(() {
-          _totalDuration = duration ?? Duration.zero;
-        });
-      }
-    });
-
-    _audioPlayer.playerStateStream.listen((state) {
-      if (mounted && state.processingState == ProcessingState.completed) {
-        setState(() {
-          _isPlaying = false;
-          _currentDuration = Duration.zero;
-        });
-      }
-    });
-  }
-
-  Future<void> _playAudio() async {
-    try {
-      if (_isPlaying) {
-        await _audioPlayer.pause();
-        setState(() => _isPlaying = false);
-      } else {
-        if (widget.audioUrl != null && widget.audioUrl!.isNotEmpty) {
-          // Stop any existing playback
-          await _audioPlayer.stop();
-
-          // Add small delay to ensure clean state
-          await Future.delayed(const Duration(milliseconds: 50));
-
-          if (widget.audioUrl!.startsWith('http')) {
-            await _audioPlayer.setUrl(widget.audioUrl!);
-          } else {
-            final file = File(widget.audioUrl!);
-            if (await file.exists()) {
-              await _audioPlayer.setFilePath(widget.audioUrl!);
-            } else {
-              throw Exception('Audio file not found at: ${widget.audioUrl}');
-            }
-          }
-
-          await _audioPlayer.play();
-          setState(() => _isPlaying = true);
-        }
-      }
-    } catch (e) {
-      debugPrint('Error playing audio: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Cannot play audio: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _stopAudio() async {
-    await _audioPlayer.stop();
-    setState(() {
-      _isPlaying = false;
-      _currentDuration = Duration.zero;
-    });
-  }
-
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$minutes:$seconds';
   }
 
   @override
   Widget build(BuildContext context) {
+    final pdfViewer = SfPdfViewer.network(widget.pdfUrl);
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-        backgroundColor: widget.primaryColor,
-        foregroundColor: Colors.white,
-        actions:
-            widget.audioUrl != null && widget.audioUrl!.isNotEmpty
-                ? [
-                  IconButton(
-                    icon: Icon(_isPlaying ? Icons.stop : Icons.volume_up),
-                    onPressed: _playAudio,
-                    tooltip:
-                        _isPlaying ? 'Stop Audio' : 'Play Audio Instructions',
-                  ),
-                ]
-                : null,
-      ),
-      body: Column(
-        children: [
-          // Audio player section if material has audio
-          if (widget.audioUrl != null && widget.audioUrl!.isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.record_voice_over,
-                        color: Colors.blue[700],
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        "Teacher's Audio Instructions",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.blue[700],
-                        ),
-                      ),
-                      const Spacer(),
-                      if (_isPlaying)
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'Playing...',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.blue[700],
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Slider(
-                    value: _currentDuration.inSeconds.toDouble(),
-                    min: 0,
-                    max: _totalDuration.inSeconds.toDouble().clamp(
-                      0,
-                      _totalDuration.inSeconds.toDouble(),
+      appBar:
+          _isFullscreen
+              ? null
+              : AppBar(
+                title: Text(widget.title),
+
+                backgroundColor: widget.primaryColor,
+
+                foregroundColor: Colors.white,
+
+                actions: [
+                  if (widget.audioUrl != null && widget.audioUrl!.isNotEmpty)
+                    IconButton(
+                      icon:
+                          _isBuffering
+                              ? const SizedBox(
+                                width: 24,
+
+                                height: 24,
+
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                ),
+                              )
+                              : Icon(
+                                _isPlaying ? Icons.pause : Icons.play_arrow,
+                              ),
+
+                      onPressed: _togglePlayback,
+
+                      tooltip: _isPlaying ? 'Pause' : 'Play',
                     ),
-                    onChanged: (value) {
-                      _audioPlayer.seek(Duration(seconds: value.toInt()));
-                    },
-                    activeColor: Colors.blue,
-                    inactiveColor: Colors.blue.withOpacity(0.3),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _formatDuration(_currentDuration),
-                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                      ),
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Iconsax.previous, size: 20),
-                            onPressed: () => _audioPlayer.seek(Duration.zero),
-                            tooltip: 'Restart',
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              _isPlaying ? Iconsax.pause : Iconsax.play,
-                              size: 24,
-                              color: Colors.blue,
-                            ),
-                            onPressed: _playAudio,
-                            tooltip: _isPlaying ? 'Pause' : 'Play',
-                          ),
-                          IconButton(
-                            icon: const Icon(Iconsax.stop, size: 20),
-                            onPressed: _stopAudio,
-                            tooltip: 'Stop',
-                          ),
-                        ],
-                      ),
-                      Text(
-                        _formatDuration(_totalDuration),
-                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                      ),
-                    ],
+
+                  IconButton(
+                    icon: Icon(
+                      _isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
+                    ),
+
+                    onPressed:
+                        () => setState(() => _isFullscreen = !_isFullscreen),
                   ),
                 ],
               ),
+
+      body: Stack(
+        children: [
+          // PDF Content
+          _isFullscreen
+              ? pdfViewer
+              : Column(
+                children: [
+                  if (widget.audioUrl != null && widget.audioUrl!.isNotEmpty)
+                    _buildAudioControls(),
+
+                  Expanded(child: pdfViewer),
+                ],
+              ),
+
+          // Fullscreen exit button
+          if (_isFullscreen)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topRight,
+
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+
+                  child: FloatingActionButton(
+                    mini: true,
+
+                    backgroundColor: Colors.black.withOpacity(0.6),
+
+                    onPressed: () => setState(() => _isFullscreen = false),
+
+                    child: const Icon(
+                      Icons.fullscreen_exit,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ],
-          Expanded(child: SfPdfViewer.network(widget.pdfUrl)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAudioControls() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+
+      color: Colors.blueGrey[900],
+
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.volume_up, color: Colors.white70, size: 20),
+
+              const SizedBox(width: 8),
+
+              const Expanded(
+                child: Text(
+                  "Teacher's Audio Instructions",
+
+                  style: TextStyle(color: Colors.white, fontSize: 14),
+
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+              if (_hasError)
+                const Padding(
+                  padding: EdgeInsets.only(left: 8),
+
+                  child: Icon(
+                    Icons.error_outline,
+                    color: Colors.redAccent,
+                    size: 20,
+                  ),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 4,
+
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+            ),
+
+            child: Slider(
+              value: _position.inSeconds.toDouble(),
+
+              min: 0,
+
+              max: _duration.inSeconds.toDouble().clamp(0, double.infinity),
+
+              onChanged: (value) {
+                _audioPlayer.seek(Duration(seconds: value.toInt()));
+              },
+
+              activeColor: Colors.blue[300],
+
+              inactiveColor: Colors.grey[600],
+            ),
+          ),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+            children: [
+              Text(
+                _formatDuration(_position),
+
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.replay_10, color: Colors.white70),
+
+                    onPressed: () {
+                      final newPos = _position - const Duration(seconds: 10);
+
+                      _audioPlayer.seek(
+                        newPos < Duration.zero ? Duration.zero : newPos,
+                      );
+                    },
+                  ),
+
+                  IconButton(
+                    icon:
+                        _isBuffering
+                            ? const SizedBox(
+                              width: 36,
+
+                              height: 36,
+
+                              child: CircularProgressIndicator(strokeWidth: 3),
+                            )
+                            : Icon(
+                              _isPlaying
+                                  ? Icons.pause_circle_filled
+                                  : Icons.play_circle_filled,
+
+                              color: Colors.white,
+
+                              size: 48,
+                            ),
+
+                    onPressed: _togglePlayback,
+                  ),
+
+                  IconButton(
+                    icon: const Icon(Icons.forward_10, color: Colors.white70),
+
+                    onPressed: () {
+                      _audioPlayer.seek(
+                        _position + const Duration(seconds: 10),
+                      );
+                    },
+                  ),
+                ],
+              ),
+
+              Text(
+                _formatDuration(_duration),
+
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-// Create this widget class
 class ImagePreviewWithAudioScreen extends StatefulWidget {
   final String imageUrl;
   final String? audioUrl;
@@ -3619,7 +3687,7 @@ class ImagePreviewWithAudioScreen extends StatefulWidget {
   const ImagePreviewWithAudioScreen({
     super.key,
     required this.imageUrl,
-    required this.audioUrl,
+    this.audioUrl,
     required this.title,
     required this.primaryColor,
   });
@@ -3631,270 +3699,248 @@ class ImagePreviewWithAudioScreen extends StatefulWidget {
 
 class _ImagePreviewWithAudioScreenState
     extends State<ImagePreviewWithAudioScreen> {
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  final _audioPlayer = AudioPlayer();
   bool _isPlaying = false;
-  Duration _currentDuration = Duration.zero;
-  Duration _totalDuration = Duration.zero;
+  bool _isFullscreen = false;
+
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  
+  bool _isBuffering = false;
+  bool _hasError = false;
 
   @override
   void initState() {
     super.initState();
-    _setupAudioPlayerListeners();
+    _initAudio();
   }
 
+Future<void> _initAudio() async {
+  if (widget.audioUrl == null || widget.audioUrl!.isEmpty) return;
+
+  try {
+    // ── Modern just_audio syntax ──
+    final audioSource = widget.audioUrl!.startsWith('http')
+        ? AudioSource.uri(Uri.parse(widget.audioUrl!))
+        : AudioSource.file(File(widget.audioUrl!) as String);
+
+    await _audioPlayer.setAudioSource(audioSource, preload: true);
+    await _audioPlayer.load();
+
+    // Rest of the code remains the same...
+    _audioPlayer.positionStream.listen((pos) { if (mounted) setState(() => _position = pos); });
+    _audioPlayer.durationStream.listen((dur) { if (mounted) setState(() => _duration = dur ?? Duration.zero); });
+
+    _audioPlayer.playerStateStream.listen((playerState) {
+      if (!mounted) return;
+      final playing = playerState.playing;
+      final processing = playerState.processingState;
+      setState(() {
+        _isPlaying = playing && processing != ProcessingState.completed && processing != ProcessingState.idle;
+        _isBuffering = processing == ProcessingState.buffering;
+        _hasError = (processing == ProcessingState.idle && !playing && _duration > Duration.zero);
+      });
+    });
+  } catch (e, stack) {
+    debugPrint("Audio init failed: $e\n$stack");
+    if (mounted) setState(() => _hasError = true);
+  }
+}
   @override
   void dispose() {
     _audioPlayer.dispose();
     super.dispose();
   }
 
-  void _setupAudioPlayerListeners() {
-    _audioPlayer.positionStream.listen((position) {
-      if (mounted) {
-        setState(() {
-          _currentDuration = position;
-        });
-      }
-    });
-
-    _audioPlayer.durationStream.listen((duration) {
-      if (mounted) {
-        setState(() {
-          _totalDuration = duration ?? Duration.zero;
-        });
-      }
-    });
-
-    _audioPlayer.playerStateStream.listen((state) {
-      if (mounted && state.processingState == ProcessingState.completed) {
-        setState(() {
-          _isPlaying = false;
-          _currentDuration = Duration.zero;
-        });
-      }
-    });
-  }
-
-  Future<void> _playAudio() async {
-    try {
-      if (_isPlaying) {
-        await _audioPlayer.pause();
-        setState(() => _isPlaying = false);
-      } else {
-        if (widget.audioUrl != null && widget.audioUrl!.isNotEmpty) {
-          // Stop any existing playback
-          await _audioPlayer.stop();
-
-          // Add small delay to ensure clean state
-          await Future.delayed(const Duration(milliseconds: 50));
-
-          if (widget.audioUrl!.startsWith('http')) {
-            await _audioPlayer.setUrl(widget.audioUrl!);
-          } else {
-            final file = File(widget.audioUrl!);
-            if (await file.exists()) {
-              await _audioPlayer.setFilePath(widget.audioUrl!);
-            } else {
-              throw Exception('Audio file not found at: ${widget.audioUrl}');
-            }
-          }
-
-          await _audioPlayer.play();
-          setState(() => _isPlaying = true);
-        }
-      }
-    } catch (e) {
-      debugPrint('Error playing audio: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Cannot play audio: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _stopAudio() async {
-    await _audioPlayer.stop();
-    setState(() {
-      _isPlaying = false;
-      _currentDuration = Duration.zero;
-    });
-  }
-
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$minutes:$seconds';
+  String _formatDuration(Duration d) {
+    final min = d.inMinutes.toString().padLeft(2, '0');
+    final sec = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$min:$sec';
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-        backgroundColor: widget.primaryColor,
-        foregroundColor: Colors.white,
-        actions:
-            widget.audioUrl != null && widget.audioUrl!.isNotEmpty
-                ? [
-                  IconButton(
-                    icon: Icon(_isPlaying ? Icons.stop : Icons.volume_up),
-                    onPressed: _playAudio,
-                    tooltip:
-                        _isPlaying ? 'Stop Audio' : 'Play Audio Instructions',
-                  ),
-                ]
-                : null,
+    final imageWidget = InteractiveViewer(
+      panEnabled: true,
+      boundaryMargin: const EdgeInsets.all(100),
+      minScale: 0.5,
+      maxScale: 4.0,
+      child: Image.network(
+        widget.imageUrl,
+        fit: BoxFit.contain,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.broken_image, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text('Failed to load image'),
+              ],
+            ),
+          );
+        },
       ),
-      body: Column(
-        children: [
-          // Audio player section if material has audio
-          if (widget.audioUrl != null && widget.audioUrl!.isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.record_voice_over,
-                        color: Colors.blue[700],
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        "Teacher's Audio Instructions",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.blue[700],
-                        ),
-                      ),
-                      const Spacer(),
-                      if (_isPlaying)
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'Playing...',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.blue[700],
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Slider(
-                    value: _currentDuration.inSeconds.toDouble(),
-                    min: 0,
-                    max: _totalDuration.inSeconds.toDouble().clamp(
-                      0,
-                      _totalDuration.inSeconds.toDouble(),
+    );
+
+    return Scaffold(
+      appBar:
+          _isFullscreen
+              ? null
+              : AppBar(
+                title: Text(widget.title),
+                backgroundColor: widget.primaryColor,
+                foregroundColor: Colors.white,
+                actions: [
+                  if (widget.audioUrl != null && widget.audioUrl!.isNotEmpty)
+                    IconButton(
+                      icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
+                      onPressed: () async {
+                        if (_isPlaying) {
+                          await _audioPlayer.pause();
+                        } else {
+                          await _audioPlayer.play();
+                        }
+                        setState(() => _isPlaying = !_isPlaying);
+                      },
                     ),
-                    onChanged: (value) {
-                      _audioPlayer.seek(Duration(seconds: value.toInt()));
-                    },
-                    activeColor: Colors.blue,
-                    inactiveColor: Colors.blue.withOpacity(0.3),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _formatDuration(_currentDuration),
-                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                      ),
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Iconsax.previous, size: 20),
-                            onPressed: () => _audioPlayer.seek(Duration.zero),
-                            tooltip: 'Restart',
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              _isPlaying ? Iconsax.pause : Iconsax.play,
-                              size: 24,
-                              color: Colors.blue,
-                            ),
-                            onPressed: _playAudio,
-                            tooltip: _isPlaying ? 'Pause' : 'Play',
-                          ),
-                          IconButton(
-                            icon: const Icon(Iconsax.stop, size: 20),
-                            onPressed: _stopAudio,
-                            tooltip: 'Stop',
-                          ),
-                        ],
-                      ),
-                      Text(
-                        _formatDuration(_totalDuration),
-                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                      ),
-                    ],
+                  IconButton(
+                    icon: Icon(
+                      _isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
+                    ),
+                    onPressed:
+                        () => setState(() => _isFullscreen = !_isFullscreen),
                   ),
                 ],
               ),
-            ),
-          ],
-          Expanded(
-            child: Center(
-              child: InteractiveViewer(
-                panEnabled: true,
-                minScale: 0.5,
-                maxScale: 3.0,
-                child: Image.network(
-                  widget.imageUrl,
-                  fit: BoxFit.contain,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Center(
-                      child: CircularProgressIndicator(
-                        color: widget.primaryColor,
-                        value:
-                            loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
-                                : null,
-                      ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey[200],
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 48,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Failed to load image',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+      body: Stack(
+        children: [
+          _isFullscreen
+              ? imageWidget
+              : Column(
+                children: [
+                  if (widget.audioUrl != null && widget.audioUrl!.isNotEmpty)
+                    _buildAudioControls(),
+                  Expanded(child: imageWidget),
+                ],
+              ),
+
+          // Fullscreen exit button
+          if (_isFullscreen)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: FloatingActionButton(
+                    mini: true,
+                    backgroundColor: Colors.black.withOpacity(0.6),
+                    onPressed: () => setState(() => _isFullscreen = false),
+                    child: const Icon(
+                      Icons.fullscreen_exit,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAudioControls() {
+    // Same audio control UI as in PDF version (you can extract to a shared widget)
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      color: Colors.blueGrey[900],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.volume_up, color: Colors.white70, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  "Teacher's Audio Instructions",
+                  style: TextStyle(color: Colors.white, fontSize: 14),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 4,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+            ),
+            child: Slider(
+              value: _position.inSeconds.toDouble(),
+              min: 0,
+              max: _duration.inSeconds.toDouble().clamp(0, double.infinity),
+              onChanged: (value) {
+                _audioPlayer.seek(Duration(seconds: value.toInt()));
+              },
+              activeColor: Colors.blue[300],
+              inactiveColor: Colors.grey[600],
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _formatDuration(_position),
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.replay_10, color: Colors.white70),
+                    onPressed: () {
+                      final newPos = _position - const Duration(seconds: 10);
+                      _audioPlayer.seek(
+                        newPos < Duration.zero ? Duration.zero : newPos,
+                      );
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      _isPlaying
+                          ? Icons.pause_circle_filled
+                          : Icons.play_circle_filled,
+                      color: Colors.white,
+                      size: 40,
+                    ),
+                    onPressed: () async {
+                      if (_isPlaying) {
+                        await _audioPlayer.pause();
+                      } else {
+                        await _audioPlayer.play();
+                      }
+                      setState(() => _isPlaying = !_isPlaying);
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.forward_10, color: Colors.white70),
+                    onPressed: () {
+                      _audioPlayer.seek(
+                        _position + const Duration(seconds: 10),
+                      );
+                    },
+                  ),
+                ],
+              ),
+              Text(
+                _formatDuration(_duration),
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
           ),
         ],
       ),

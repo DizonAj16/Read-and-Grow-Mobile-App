@@ -1034,16 +1034,15 @@ class _MaterialsPageState extends State<MaterialsPage> {
       floatingActionButton:
           _isLoading
               ? null // Hide the real FAB when loading
-              : FloatingActionButton.extended(
+              : FloatingActionButton(
                 onPressed: _showUploadDialog,
                 backgroundColor: colorScheme.primary,
                 foregroundColor: colorScheme.onPrimary,
                 elevation: 4,
-                icon: const Icon(Icons.upload_file),
-                label: const Text('Upload Material'),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
+                child: const Icon(Icons.upload_file),
               ),
     );
   }

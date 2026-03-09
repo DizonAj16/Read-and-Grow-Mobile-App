@@ -573,3 +573,21 @@ class MatchingPair {
     };
   }
 }
+extension QuestionTypeDisplay on QuestionType {
+  String get displayName {
+    // Convert camelCase → Title Case with spaces
+    final String camel = name;
+    
+    // Insert space before each uppercase letter (except first char)
+    final buffer = StringBuffer();
+    for (int i = 0; i < camel.length; i++) {
+      final char = camel[i];
+      if (i > 0 && char.toUpperCase() == char) {
+        buffer.write(' ');
+      }
+      buffer.write(char.toUpperCase());
+    }
+    
+    return buffer.toString();
+  }
+}

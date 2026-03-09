@@ -558,29 +558,15 @@ class _PupilManagementPageState extends State<PupilManagementPage> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Theme.of(context).colorScheme.primary.withOpacity(0.1),
-            Theme.of(context).colorScheme.secondary.withOpacity(0.1),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
+        color: Theme.of(context).colorScheme.primary,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Search Section
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
@@ -637,7 +623,7 @@ class _PupilManagementPageState extends State<PupilManagementPage> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              color: Theme.of(context).colorScheme.surface.withOpacity(0.7),
               letterSpacing: 1.2,
             ),
           ),
@@ -682,17 +668,17 @@ class _PupilManagementPageState extends State<PupilManagementPage> {
     required Function(String?) onChanged,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: DropdownButton<String>(
         value: value,
-        hint: Text(title, style: TextStyle(color: Colors.grey[600])),
+        hint: Text(title, style: TextStyle(color: Colors.grey[600],)),
         items:
             [null, ...items].map((item) {
               return DropdownMenuItem(
@@ -704,6 +690,7 @@ class _PupilManagementPageState extends State<PupilManagementPage> {
                         item == null
                             ? Colors.grey[500]
                             : Theme.of(context).colorScheme.onSurface,
+                            fontSize: 12,
                   ),
                 ),
               );

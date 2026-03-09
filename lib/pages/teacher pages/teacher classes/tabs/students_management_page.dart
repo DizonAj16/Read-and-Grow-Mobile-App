@@ -2,9 +2,7 @@ import 'package:deped_reading_app_laravel/api/classroom_service.dart';
 import 'package:deped_reading_app_laravel/models/student_model.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../main.dart';
 
 class StudentsManagementPage extends StatefulWidget {
   final String classId;
@@ -275,7 +273,7 @@ class _StudentsManagementPageState extends State<StudentsManagementPage> {
       width: avatarSize,
       height: avatarSize,
       decoration: BoxDecoration(
-        color: colorScheme.primary.withOpacity(isAssigned ? 0.8 : 0.6),
+        color: colorScheme.primary,
         shape: BoxShape.circle,
       ),
       child: Center(
@@ -387,7 +385,7 @@ class _StudentsManagementPageState extends State<StudentsManagementPage> {
                             vertical: 5,
                           ),
                           decoration: BoxDecoration(
-                            color: colorScheme.primaryContainer.withOpacity(
+                            color: colorScheme.primary.withOpacity(
                               0.7,
                             ),
                             borderRadius: BorderRadius.circular(12),
@@ -401,7 +399,7 @@ class _StudentsManagementPageState extends State<StudentsManagementPage> {
                           child: Text(
                             "${student.studentGrade ?? 'N/A'}${student.studentSection != null && student.studentSection!.isNotEmpty ? ' - ${student.studentSection!}' : ''}",
                             style: theme.textTheme.labelMedium?.copyWith(
-                              color: colorScheme.onPrimaryContainer,
+                              color: colorScheme.onPrimary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
