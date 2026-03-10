@@ -45,6 +45,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
   }
 
   Future<void> _loadMaterials() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _hasError = false;
@@ -53,20 +54,25 @@ class _MaterialsPageState extends State<MaterialsPage> {
     try {
       final data = await MaterialService.getClassroomMaterials(widget.classId);
 
+      if (!mounted) return; // ✅ guard after await
       setState(() {
         _materials = data;
       });
 
-      print("✅ Materials loaded: ${data.length}");
+      debugPrint("✅ Materials loaded: ${data.length}");
     } catch (e) {
-      print("❌ Error loading materials: $e");
+      debugPrint("❌ Error loading materials: $e");
+      if (!mounted) return; // ✅ guard after await
       setState(() {
         _hasError = true;
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        // ✅ guard in finally — this was the crash
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -822,10 +828,7 @@ class _MaterialCard extends StatelessWidget {
   final MaterialModel material;
   final VoidCallback onTap;
 
-  const _MaterialCard({
-    required this.material,
-    required this.onTap,
-  });
+  const _MaterialCard({required this.material, required this.onTap});
 
   IconData _getMaterialIcon() {
     switch (material.materialType) {
@@ -968,7 +971,9 @@ class _MaterialCard extends StatelessWidget {
                             ),
                           if (material.fileSize != null)
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                               child: Container(
                                 width: 4,
                                 height: 4,

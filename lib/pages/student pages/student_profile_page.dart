@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'package:deped_reading_app_laravel/api/user_service.dart';
 import 'package:deped_reading_app_laravel/models/student_model.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+// import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import '../../widgets/ui_states.dart';
 import '../../utils/database_helpers.dart';
@@ -171,7 +171,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
       appBar: AppBar(
         title: Text(
           'My Profile',
-          style: GoogleFonts.poppins(
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontSize: 24,
             fontWeight: FontWeight.bold,
             color: Colors.white,

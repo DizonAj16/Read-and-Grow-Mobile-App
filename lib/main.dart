@@ -1,28 +1,28 @@
-  import 'package:deped_reading_app_laravel/constants.dart';
-  import 'package:flutter/material.dart';
-  import 'package:google_fonts/google_fonts.dart';
-  import 'package:supabase_flutter/supabase_flutter.dart';
-  import 'pages/auth pages/landing_page.dart';
+import 'package:deped_reading_app_laravel/constants.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'pages/auth pages/landing_page.dart';
 
-  const supabaseUrl = 'https://zrcynmiiduwrtlcyzvzi.supabase.co';
-  const supabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyY3lubWlpZHV3cnRsY3l6dnppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyNDExMzIsImV4cCI6MjA3MjgxNzEzMn0.NPDpQKXC5h7qiSTPsIIty8qdNn1DnSHptIkagWlmTHM';
+const supabaseUrl = 'https://zrcynmiiduwrtlcyzvzi.supabase.co';
+const supabaseAnonKey =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyY3lubWlpZHV3cnRsY3l6dnppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyNDExMzIsImV4cCI6MjA3MjgxNzEzMn0.NPDpQKXC5h7qiSTPsIIty8qdNn1DnSHptIkagWlmTHM';
 
-  ThemeData buildLightTheme(BuildContext context) {
-    return ThemeData.light().copyWith(
-      colorScheme: ColorScheme.light(
-        primary: kPrimaryColor,
-        secondary: kSecondaryColor,
-        surface: kLightSurfaceColor,
-        background: kLightBackgroundColor,
-        onPrimary: kLightOnPrimary,
-        onSecondary: kLightOnSecondary,
-        onSurface: kLightOnSurface,
-        onBackground: kLightOnBackground,
-        error: kPrimaryColor,
-      ),
-      textTheme: GoogleFonts.poppinsTextTheme(
-        Theme.of(context).textTheme.copyWith(
+ThemeData buildLightTheme(BuildContext context) {
+  return ThemeData.light().copyWith(
+    colorScheme: ColorScheme.light(
+      primary: kPrimaryColor,
+      secondary: kSecondaryColor,
+      surface: kLightSurfaceColor,
+      background: kLightBackgroundColor,
+      onPrimary: kLightOnPrimary,
+      onSecondary: kLightOnSecondary,
+      onSurface: kLightOnSurface,
+      onBackground: kLightOnBackground,
+      error: kPrimaryColor,
+    ),
+    textTheme: Theme.of(context).textTheme
+        .copyWith(
           headlineLarge: TextStyle(
             fontSize: 32,
             fontWeight: FontWeight.bold,
@@ -53,26 +53,26 @@
             fontWeight: FontWeight.w300,
             color: kHeadlineMediumColor,
           ),
-        ),
-      ),
-    );
-  }
+        )
+        .apply(fontFamily: 'Poppins'),
+  );
+}
 
-  ThemeData buildDarkTheme(BuildContext context) {
-    return ThemeData.dark().copyWith(
-      colorScheme: ColorScheme.dark(
-        primary: kPrimaryColor,
-        secondary: kSecondaryColor,
-        surface: kDarkSurfaceColor,
-        background: kDarkBackgroundColor,
-        onPrimary: kDarkOnPrimary,
-        onSecondary: kDarkOnSecondary,
-        onSurface: kDarkOnSurface,
-        onBackground: kDarkOnBackground,
-        error: kPrimaryColor,
-      ),
-      textTheme: GoogleFonts.poppinsTextTheme(
-        Theme.of(context).textTheme.copyWith(
+ThemeData buildDarkTheme(BuildContext context) {
+  return ThemeData.dark().copyWith(
+    colorScheme: ColorScheme.dark(
+      primary: kPrimaryColor,
+      secondary: kSecondaryColor,
+      surface: kDarkSurfaceColor,
+      background: kDarkBackgroundColor,
+      onPrimary: kDarkOnPrimary,
+      onSecondary: kDarkOnSecondary,
+      onSurface: kDarkOnSurface,
+      onBackground: kDarkOnBackground,
+      error: kPrimaryColor,
+    ),
+    textTheme: Theme.of(context).textTheme
+        .copyWith(
           headlineLarge: TextStyle(
             fontSize: 32,
             fontWeight: FontWeight.bold,
@@ -103,40 +103,38 @@
             fontWeight: FontWeight.w300,
             color: kSecondaryColor,
           ),
-        ),
-      ),
+        )
+        .apply(fontFamily: 'Poppins'),
+  );
+}
+
+final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  GoogleFonts.config.allowRuntimeFetching = false;
+
+  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (context, currentTheme, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: buildLightTheme(context),
+          darkTheme: buildDarkTheme(context),
+          themeMode: currentTheme,
+          home: const LandingPage(),
+        );
+      },
     );
   }
-
-  final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
-
-  Future<void> main() async {
-    WidgetsFlutterBinding.ensureInitialized();
-
-    await Supabase.initialize(
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
-    );
-
-    runApp(const MyApp());
-  }
-
-  class MyApp extends StatelessWidget {
-    const MyApp({super.key});
-
-    @override
-    Widget build(BuildContext context) {
-      return ValueListenableBuilder<ThemeMode>(
-        valueListenable: themeNotifier,
-        builder: (context, currentTheme, child) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: buildLightTheme(context),
-            darkTheme: buildDarkTheme(context),
-            themeMode: currentTheme,
-            home: const LandingPage(),
-          );
-        },
-      );
-    }
-  }
+}

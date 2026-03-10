@@ -88,10 +88,7 @@ Map<String, dynamic> _enrichSubmission(Map<String, dynamic> raw) {
 }
 
 /// Sorts submissions by [submitted_at_datetime] descending (latest first).
-int _compareSubmissionsDesc(
-  Map<String, dynamic> a,
-  Map<String, dynamic> b,
-) {
+int _compareSubmissionsDesc(Map<String, dynamic> a, Map<String, dynamic> b) {
   final aDate = a['submitted_at_datetime'] as DateTime? ?? DateTime.now();
   final bDate = b['submitted_at_datetime'] as DateTime? ?? DateTime.now();
   return bDate.compareTo(aDate);
@@ -171,9 +168,9 @@ class _ChildDetailPageState extends State<ChildDetailPage>
     } catch (e, stack) {
       debugPrint('❌ [ChildDetailPage] Error loading data: $e\n$stack');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading data: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading data: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -210,10 +207,11 @@ class _ChildDetailPageState extends State<ChildDetailPage>
 
     // Submissions
     final rawList = (data['quizSubmissions'] as List<dynamic>?) ?? [];
-    _quizSubmissions = rawList
-        .map((e) => _enrichSubmission(Map<String, dynamic>.from(e)))
-        .toList()
-      ..sort(_compareSubmissionsDesc);
+    _quizSubmissions =
+        rawList
+            .map((e) => _enrichSubmission(Map<String, dynamic>.from(e)))
+            .toList()
+          ..sort(_compareSubmissionsDesc);
 
     _recentSubmissions = _quizSubmissions.take(5).toList();
   }
@@ -222,14 +220,12 @@ class _ChildDetailPageState extends State<ChildDetailPage>
     // Serialize DateTimes to strings before encoding to avoid JSON errors.
     debugPrint(
       '📋 [ChildDetailPage] Quiz submissions:\n'
-      '${const JsonEncoder.withIndent('  ').convert(
-        _quizSubmissions.map((e) {
-          final copy = Map<String, dynamic>.from(e);
-          final dt = copy['submitted_at_datetime'];
-          if (dt is DateTime) copy['submitted_at_datetime'] = dt.toIso8601String();
-          return copy;
-        }).toList(),
-      )}',
+      '${const JsonEncoder.withIndent('  ').convert(_quizSubmissions.map((e) {
+        final copy = Map<String, dynamic>.from(e);
+        final dt = copy['submitted_at_datetime'];
+        if (dt is DateTime) copy['submitted_at_datetime'] = dt.toIso8601String();
+        return copy;
+      }).toList())}',
     );
 
     debugPrint(
@@ -308,7 +304,10 @@ class _ChildDetailPageState extends State<ChildDetailPage>
           const SizedBox(height: 16),
           Text(
             'Loading Student Data...',
-            style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 16),
+            style: TextStyle(
+              color: cs.onSurface.withOpacity(0.6),
+              fontSize: 16,
+            ),
           ),
         ],
       ),
@@ -397,23 +396,30 @@ class _ChildDetailPageState extends State<ChildDetailPage>
   }
 
   Row _buildReadingPerformanceGrid(ColorScheme cs) {
-    final accuracy = _totalCorrect + _totalWrong > 0
-        ? '${((_totalCorrect / (_totalCorrect + _totalWrong)) * 100).toInt()}%'
-        : '0%';
+    final accuracy =
+        _totalCorrect + _totalWrong > 0
+            ? '${((_totalCorrect / (_totalCorrect + _totalWrong)) * 100).toInt()}%'
+            : '0%';
 
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
-            'Accuracy', accuracy, Icons.flag,
-            Colors.blue.shade600, Colors.blue.shade50,
+            'Accuracy',
+            accuracy,
+            Icons.flag,
+            Colors.blue.shade600,
+            Colors.blue.shade50,
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: _buildStatCard(
-            'Tasks', '$_totalTasks', Icons.book,
-            cs.primary, cs.primary.withOpacity(0.05),
+            'Tasks',
+            '$_totalTasks',
+            Icons.book,
+            cs.primary,
+            cs.primary.withOpacity(0.05),
           ),
         ),
       ],
@@ -425,15 +431,21 @@ class _ChildDetailPageState extends State<ChildDetailPage>
       children: [
         Expanded(
           child: _buildStatCard(
-            'Correct', '$_totalCorrect', Icons.check_circle,
-            Colors.green.shade600, Colors.green.shade50,
+            'Correct',
+            '$_totalCorrect',
+            Icons.check_circle,
+            Colors.green.shade600,
+            Colors.green.shade50,
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: _buildStatCard(
-            'Needs Review', '$_totalWrong', Icons.warning,
-            Colors.orange.shade600, Colors.orange.shade50,
+            'Needs Review',
+            '$_totalWrong',
+            Icons.warning,
+            Colors.orange.shade600,
+            Colors.orange.shade50,
           ),
         ),
       ],
@@ -457,8 +469,8 @@ class _ChildDetailPageState extends State<ChildDetailPage>
       padding: const EdgeInsets.all(16),
       child: ListView.builder(
         itemCount: _quizSubmissions.length,
-        itemBuilder: (_, i) =>
-            _QuizSubmissionTile(submission: _quizSubmissions[i]),
+        itemBuilder:
+            (_, i) => _QuizSubmissionTile(submission: _quizSubmissions[i]),
       ),
     );
   }
@@ -493,11 +505,14 @@ class _ChildDetailPageState extends State<ChildDetailPage>
     final cs = Theme.of(context).colorScheme;
 
     final totalReadingGrades = readingGrades.length;
-    final readingAvg = totalReadingGrades > 0
-        ? readingGrades.fold<double>(
-            0, (sum, g) => sum + ((g['score'] ?? 0) as num).toDouble()) /
-            totalReadingGrades
-        : 0.0;
+    final readingAvg =
+        totalReadingGrades > 0
+            ? readingGrades.fold<double>(
+                  0,
+                  (sum, g) => sum + ((g['score'] ?? 0) as num).toDouble(),
+                ) /
+                totalReadingGrades
+            : 0.0;
 
     final readingColor = _readingScoreColor(readingAvg);
     final quizColor = _percentColor(_quizAverage / 100);
@@ -510,11 +525,13 @@ class _ChildDetailPageState extends State<ChildDetailPage>
           _PerformanceSummaryCard(
             icon: Icons.book,
             title: 'Reading Performance',
-            scoreDisplay: readingAvg > 0 ? readingAvg.toStringAsFixed(1) : 'N/A',
+            scoreDisplay:
+                readingAvg > 0 ? readingAvg.toStringAsFixed(1) : 'N/A',
             subtitle: 'out of 5',
-            gradeLabel: readingAvg > 0
-                ? _readingScoreLabel(readingAvg)
-                : 'No Grades Yet',
+            gradeLabel:
+                readingAvg > 0
+                    ? _readingScoreLabel(readingAvg)
+                    : 'No Grades Yet',
             detail: 'Based on $totalReadingGrades reading assessments',
             color: readingColor,
           ),
@@ -523,12 +540,14 @@ class _ChildDetailPageState extends State<ChildDetailPage>
           _PerformanceSummaryCard(
             icon: Icons.quiz,
             title: 'Quiz Performance',
-            scoreDisplay: _quizAverage > 0
-                ? '${_quizAverage.toStringAsFixed(1)}%'
-                : 'N/A',
-            gradeLabel: _quizAverage > 0
-                ? _quizAverageLabel(_quizAverage)
-                : 'No Quizzes Yet',
+            scoreDisplay:
+                _quizAverage > 0
+                    ? '${_quizAverage.toStringAsFixed(1)}%'
+                    : 'N/A',
+            gradeLabel:
+                _quizAverage > 0
+                    ? _quizAverageLabel(_quizAverage)
+                    : 'No Quizzes Yet',
             detail:
                 'Based on $_completedQuizzes/$_totalQuizzes completed quizzes',
             color: quizColor,
@@ -586,40 +605,71 @@ class _ChildDetailPageState extends State<ChildDetailPage>
     int totalReadingGrades,
     double readingAvg,
   ) {
-    final accuracyStr = _totalCorrect + _totalWrong > 0
-        ? '${((_totalCorrect / (_totalCorrect + _totalWrong)) * 100).toStringAsFixed(1)}%'
-        : '0%';
+    final accuracyStr =
+        _totalCorrect + _totalWrong > 0
+            ? '${((_totalCorrect / (_totalCorrect + _totalWrong)) * 100).toStringAsFixed(1)}%'
+            : '0%';
 
     return Wrap(
       spacing: 12,
       runSpacing: 12,
       children: [
         if (totalReadingGrades > 0) ...[
-          _reportStatCard('Reading Assessments', '$totalReadingGrades',
-              Icons.book, cs.primary),
-          _reportStatCard('Avg. Reading Score',
-              '${readingAvg.toStringAsFixed(1)}/5', Icons.star,
-              cs.primary.withOpacity(0.8)),
-        ] else
           _reportStatCard(
-              'Reading Assessments', '0', Icons.book, cs.outline),
+            'Reading Assessments',
+            '$totalReadingGrades',
+            Icons.book,
+            cs.primary,
+          ),
+          _reportStatCard(
+            'Avg. Reading Score',
+            '${readingAvg.toStringAsFixed(1)}/5',
+            Icons.star,
+            cs.primary.withOpacity(0.8),
+          ),
+        ] else
+          _reportStatCard('Reading Assessments', '0', Icons.book, cs.outline),
 
         if (_totalQuizzes > 0) ...[
           _reportStatCard(
-              'Total Quizzes', '$_totalQuizzes', Icons.quiz, cs.tertiary),
-          _reportStatCard('Completed Quizzes', '$_completedQuizzes',
-              Icons.assignment_turned_in, cs.tertiary.withOpacity(0.8)),
-          _reportStatCard('Quiz Average',
-              '${_quizAverage.toStringAsFixed(1)}%', Icons.star, cs.secondary),
+            'Total Quizzes',
+            '$_totalQuizzes',
+            Icons.quiz,
+            cs.tertiary,
+          ),
+          _reportStatCard(
+            'Completed Quizzes',
+            '$_completedQuizzes',
+            Icons.assignment_turned_in,
+            cs.tertiary.withOpacity(0.8),
+          ),
+          _reportStatCard(
+            'Quiz Average',
+            '${_quizAverage.toStringAsFixed(1)}%',
+            Icons.star,
+            cs.secondary,
+          ),
         ] else
           _reportStatCard('Total Quizzes', '0', Icons.quiz, cs.outline),
 
-        _reportStatCard('Correct Answers', '$_totalCorrect',
-            Icons.check_circle, Colors.green.shade600),
-        _reportStatCard('Wrong Answers', '$_totalWrong', Icons.cancel,
-            Colors.red.shade600),
         _reportStatCard(
-            'Accuracy Rate', accuracyStr, Icons.trending_up, cs.primary),
+          'Correct Answers',
+          '$_totalCorrect',
+          Icons.check_circle,
+          Colors.green.shade600,
+        ),
+        _reportStatCard(
+          'Wrong Answers',
+          '$_totalWrong',
+          Icons.cancel,
+          Colors.red.shade600,
+        ),
+        _reportStatCard(
+          'Accuracy Rate',
+          accuracyStr,
+          Icons.trending_up,
+          cs.primary,
+        ),
       ],
     );
   }
@@ -683,16 +733,24 @@ class _ChildDetailPageState extends State<ChildDetailPage>
           children: [
             _CircleIcon(icon: icon, color: color, iconSize: 24, padding: 12),
             const SizedBox(height: 12),
-            Text(value,
-                style: TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.bold, color: color)),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
             const SizedBox(height: 6),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 13,
-                    color: onSurface.withOpacity(0.7),
-                    fontWeight: FontWeight.w500),
-                textAlign: TextAlign.center),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: onSurface.withOpacity(0.7),
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
@@ -700,7 +758,11 @@ class _ChildDetailPageState extends State<ChildDetailPage>
   }
 
   Widget _reportStatCard(
-      String label, String value, IconData icon, Color color) {
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return SizedBox(
@@ -714,17 +776,25 @@ class _ChildDetailPageState extends State<ChildDetailPage>
             children: [
               _CircleIcon(icon: icon, color: color, iconSize: 20, padding: 8),
               const SizedBox(height: 12),
-              Text(value,
-                  style: TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
               const SizedBox(height: 6),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: onSurface.withOpacity(0.7),
-                      fontWeight: FontWeight.w500),
-                  textAlign: TextAlign.center,
-                  maxLines: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: onSurface.withOpacity(0.7),
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+              ),
             ],
           ),
         ),
@@ -787,8 +857,10 @@ class _ReadingLevelCard extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(12),
-              decoration:
-                  BoxDecoration(color: cs.surface, shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: cs.surface,
+                shape: BoxShape.circle,
+              ),
               child: Icon(Icons.school, size: 32, color: cs.primary),
             ),
             const SizedBox(width: 16),
@@ -799,24 +871,28 @@ class _ReadingLevelCard extends StatelessWidget {
                   Text(
                     'Current Reading Level',
                     style: TextStyle(
-                        fontSize: 14,
-                        color: cs.onSurface.withOpacity(0.7),
-                        fontWeight: FontWeight.w500),
+                      fontSize: 14,
+                      color: cs.onSurface.withOpacity(0.7),
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     readingLevel,
                     style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: cs.primary),
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: cs.primary,
+                    ),
                   ),
                   if (readingLevel != 'Not Set') ...[
                     const SizedBox(height: 8),
                     Text(
                       'Based on reading assessments and performance',
                       style: TextStyle(
-                          fontSize: 12, color: cs.onSurface.withOpacity(0.5)),
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.5),
+                      ),
                     ),
                   ],
                 ],
@@ -859,16 +935,22 @@ class _TaskCompletionCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Task Completion',
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface)),
-                Text('$completedTasks/$totalTasks',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: cs.primary)),
+                Text(
+                  'Task Completion',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                ),
+                Text(
+                  '$completedTasks/$totalTasks',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: cs.primary,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -884,12 +966,17 @@ class _TaskCompletionCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('${(completionPercent * 100).toInt()}% Complete',
-                    style: TextStyle(
-                        fontSize: 14, color: cs.onSurface.withOpacity(0.7))),
-                Text('$pendingTasks Pending',
-                    style:
-                        TextStyle(fontSize: 14, color: Colors.orange.shade600)),
+                Text(
+                  '${(completionPercent * 100).toInt()}% Complete',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
+                ),
+                Text(
+                  '$pendingTasks Pending',
+                  style: TextStyle(fontSize: 14, color: Colors.orange.shade600),
+                ),
               ],
             ),
           ],
@@ -927,32 +1014,42 @@ class _QuizProgressCard extends StatelessWidget {
             Row(
               children: [
                 _CircleIcon(
-                    icon: Icons.quiz,
-                    color: cs.tertiary,
-                    iconSize: 20,
-                    padding: 8),
+                  icon: Icons.quiz,
+                  color: cs.tertiary,
+                  iconSize: 20,
+                  padding: 8,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Quiz Completion',
-                          style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: cs.onSurface)),
-                      Text('$completedQuizzes/$totalQuizzes completed',
-                          style: TextStyle(
-                              fontSize: 14,
-                              color: cs.onSurface.withOpacity(0.7))),
+                      Text(
+                        'Quiz Completion',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                      Text(
+                        '$completedQuizzes/$totalQuizzes completed',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: cs.onSurface.withOpacity(0.7),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                Text('${quizAverage.toStringAsFixed(0)}%',
-                    style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: cs.tertiary)),
+                Text(
+                  '${quizAverage.toStringAsFixed(0)}%',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: cs.tertiary,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -1004,33 +1101,37 @@ class _ProgressSummaryCard extends StatelessWidget {
             children: [
               Icon(Icons.insights, color: cs.primary, size: 20),
               const SizedBox(width: 8),
-              Text('Key Insights',
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: cs.onSurface)),
+              Text(
+                'Key Insights',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
           _InsightItem(
             label: 'Reading Level',
             value: readingLevel,
-            icon:
-                readingLevel != 'Not Set' ? Icons.check_circle : Icons.info,
+            icon: readingLevel != 'Not Set' ? Icons.check_circle : Icons.info,
             color: readingLevel != 'Not Set' ? Colors.green : Colors.blue,
           ),
           const SizedBox(height: 12),
           _InsightItem(
             label: 'Task Completion',
             value: '${(completionPercent * 100).toInt()}%',
-            icon: completionPercent >= 0.7
-                ? Icons.trending_up
-                : completionPercent >= 0.3
+            icon:
+                completionPercent >= 0.7
+                    ? Icons.trending_up
+                    : completionPercent >= 0.3
                     ? Icons.trending_flat
                     : Icons.trending_down,
-            color: completionPercent >= 0.7
-                ? Colors.green
-                : completionPercent >= 0.3
+            color:
+                completionPercent >= 0.7
+                    ? Colors.green
+                    : completionPercent >= 0.3
                     ? Colors.orange
                     : Colors.red,
           ),
@@ -1039,14 +1140,16 @@ class _ProgressSummaryCard extends StatelessWidget {
             _InsightItem(
               label: 'Quiz Performance',
               value: '${quizAverage.toStringAsFixed(0)}%',
-              icon: quizAverage >= 75
-                  ? Icons.star
-                  : quizAverage >= 50
+              icon:
+                  quizAverage >= 75
+                      ? Icons.star
+                      : quizAverage >= 50
                       ? Icons.check_circle
                       : Icons.warning,
-              color: quizAverage >= 75
-                  ? Colors.green
-                  : quizAverage >= 50
+              color:
+                  quizAverage >= 75
+                      ? Colors.green
+                      : quizAverage >= 50
                       ? Colors.orange
                       : Colors.red,
             ),
@@ -1082,15 +1185,22 @@ class _InsightItem extends StatelessWidget {
         _CircleIcon(icon: icon, color: color, iconSize: 16, padding: 6),
         const SizedBox(width: 12),
         Expanded(
-          child: Text(label,
-              style: TextStyle(
-                  fontSize: 14, color: cs.onSurface.withOpacity(0.8))),
-        ),
-        Text(value,
+          child: Text(
+            label,
             style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: cs.onSurface)),
+              fontSize: 14,
+              color: cs.onSurface.withOpacity(0.8),
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: cs.onSurface,
+          ),
+        ),
       ],
     );
   }
@@ -1133,41 +1243,59 @@ class _PerformanceSummaryCard extends StatelessWidget {
               children: [
                 Icon(icon, size: 24, color: color),
                 const SizedBox(width: 8),
-                Text(title,
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface)),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
-            Text(scoreDisplay,
-                style: TextStyle(
-                    fontSize: 52, fontWeight: FontWeight.bold, color: color)),
+            Text(
+              scoreDisplay,
+              style: TextStyle(
+                fontSize: 52,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
             if (subtitle != null) ...[
               const SizedBox(height: 8),
-              Text(subtitle!,
-                  style: TextStyle(
-                      fontSize: 16, color: cs.onSurface.withOpacity(0.6))),
+              Text(
+                subtitle!,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: cs.onSurface.withOpacity(0.6),
+                ),
+              ),
             ],
             const SizedBox(height: 12),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Text(gradeLabel,
-                  style: TextStyle(
-                      fontSize: 18,
-                      color: color,
-                      fontWeight: FontWeight.w600)),
+              child: Text(
+                gradeLabel,
+                style: TextStyle(
+                  fontSize: 18,
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             const SizedBox(height: 8),
-            Text(detail,
-                style: TextStyle(
-                    fontSize: 14, color: cs.onSurface.withOpacity(0.6))),
+            Text(
+              detail,
+              style: TextStyle(
+                fontSize: 14,
+                color: cs.onSurface.withOpacity(0.6),
+              ),
+            ),
           ],
         ),
       ),
@@ -1192,9 +1320,10 @@ class _QuizSubmissionTile extends StatelessWidget {
     final maxScore = (submission['max_score'] ?? 0).toDouble();
     final scorePercent = maxScore > 0 ? score / maxScore : 0.0;
     final scoreColor = _percentColor(scorePercent);
-    final scoreIcon = scorePercent >= 0.8
-        ? Icons.star
-        : scorePercent >= 0.6
+    final scoreIcon =
+        scorePercent >= 0.8
+            ? Icons.star
+            : scorePercent >= 0.6
             ? Icons.check_circle
             : Icons.warning;
 
@@ -1204,20 +1333,26 @@ class _QuizSubmissionTile extends StatelessWidget {
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ExpansionTile(
-          tilePadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           childrenPadding: const EdgeInsets.only(
-              left: 16, right: 16, bottom: 16),
+            left: 16,
+            right: 16,
+            bottom: 16,
+          ),
           leading: _CircleIcon(
-              icon: scoreIcon,
-              color: scoreColor,
-              iconSize: 22,
-              padding: 10),
-          title: Text(quizTitle,
-              style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                  color: cs.onSurface)),
+            icon: scoreIcon,
+            color: scoreColor,
+            iconSize: 22,
+            padding: 10,
+          ),
+          title: Text(
+            quizTitle,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+              color: cs.onSurface,
+            ),
+          ),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1231,8 +1366,10 @@ class _QuizSubmissionTile extends StatelessWidget {
                 padding: EdgeInsets.zero,
               ),
               const SizedBox(height: 4),
-              Text('${(scorePercent * 100).toStringAsFixed(1)}%',
-                  style: TextStyle(fontSize: 12, color: cs.outline)),
+              Text(
+                '${(scorePercent * 100).toStringAsFixed(1)}%',
+                style: TextStyle(fontSize: 12, color: cs.outline),
+              ),
             ],
           ),
           trailing: Row(
@@ -1240,7 +1377,9 @@ class _QuizSubmissionTile extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 6),
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: scoreColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
@@ -1248,9 +1387,10 @@ class _QuizSubmissionTile extends StatelessWidget {
                 child: Text(
                   '${score.toInt()}/${maxScore.toInt()}',
                   style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: scoreColor),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: scoreColor,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1272,9 +1412,10 @@ class _QuizSubmissionTile extends StatelessWidget {
                     Text(
                       'Submitted: ${_formatDateTime(submission['submitted_at'] as String?)}',
                       style: TextStyle(
-                          color: cs.outline,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500),
+                        color: cs.outline,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
@@ -1320,13 +1461,14 @@ class _ReadingGradeTileState extends State<_ReadingGradeTile> {
     final hasHalfStar = (score - fullStars) >= 0.5;
 
     final color = _readingScoreColor(score);
-    final icon = score >= 4
-        ? Icons.star
-        : score >= 3
+    final icon =
+        score >= 4
+            ? Icons.star
+            : score >= 3
             ? Icons.check_circle
             : score >= 2
-                ? Icons.info
-                : Icons.warning;
+            ? Icons.info
+            : Icons.warning;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1335,12 +1477,18 @@ class _ReadingGradeTileState extends State<_ReadingGradeTile> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ExpansionTile(
           onExpansionChanged: (v) => setState(() => _isExpanded = v),
-          tilePadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           childrenPadding: const EdgeInsets.only(
-              left: 16, right: 16, bottom: 16),
+            left: 16,
+            right: 16,
+            bottom: 16,
+          ),
           leading: _CircleIcon(
-              icon: icon, color: color, iconSize: 22, padding: 10),
+            icon: icon,
+            color: color,
+            iconSize: 22,
+            padding: 10,
+          ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1348,21 +1496,24 @@ class _ReadingGradeTileState extends State<_ReadingGradeTile> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Text(title,
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                            color: cs.onSurface),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        color: cs.onSurface,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   gradedBy != 'N/A'
                       ? _StarRatingBadge(
-                          score: score,
-                          fullStars: fullStars,
-                          hasHalfStar: hasHalfStar,
-                          color: color,
-                        )
+                        score: score,
+                        fullStars: fullStars,
+                        hasHalfStar: hasHalfStar,
+                        color: color,
+                      )
                       : _NotGradedBadge(),
                 ],
               ),
@@ -1381,9 +1532,10 @@ class _ReadingGradeTileState extends State<_ReadingGradeTile> {
             ],
           ),
           trailing: Icon(
-              _isExpanded ? Icons.expand_less : Icons.expand_more,
-              size: 24,
-              color: cs.outline),
+            _isExpanded ? Icons.expand_less : Icons.expand_more,
+            size: 24,
+            color: cs.outline,
+          ),
           children: [
             _ReadingGradeExpandedContent(
               score: score,
@@ -1437,13 +1589,21 @@ class _StarRatingBadge extends StatelessWidget {
             if (i < fullStars) return Icon(Icons.star, size: 16, color: color);
             if (i == fullStars && hasHalfStar)
               return Icon(Icons.star_half, size: 16, color: color);
-            return Icon(Icons.star_border,
-                size: 16, color: cs.outline.withOpacity(0.4));
+            return Icon(
+              Icons.star_border,
+              size: 16,
+              color: cs.outline.withOpacity(0.4),
+            );
           }),
           const SizedBox(width: 4),
-          Text('${score.toStringAsFixed(1)}/5',
-              style: TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+          Text(
+            '${score.toStringAsFixed(1)}/5',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -1462,9 +1622,14 @@ class _NotGradedBadge extends StatelessWidget {
         color: outline.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text('Not Yet Graded',
-          style: TextStyle(
-              fontSize: 12, fontWeight: FontWeight.w500, color: outline)),
+      child: Text(
+        'Not Yet Graded',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: outline,
+        ),
+      ),
     );
   }
 }
@@ -1521,20 +1686,24 @@ class _ReadingGradeExpandedContent extends StatelessWidget {
           if (description.isNotEmpty) ...[
             _DetailLabel('Description:', cs.outline),
             const SizedBox(height: 4),
-            Text(description,
-                style: TextStyle(fontSize: 13, color: cs.outline)),
+            Text(
+              description,
+              style: TextStyle(fontSize: 13, color: cs.outline),
+            ),
             const SizedBox(height: 12),
           ],
           _IconRow(Icons.person, 'Graded by: $gradedBy', cs.outline),
           const SizedBox(height: 8),
           if (teacherComments.isNotEmpty) ...[
-            _IconRow(
-                Icons.comment, 'Comments: $teacherComments', cs.outline),
+            _IconRow(Icons.comment, 'Comments: $teacherComments', cs.outline),
             const SizedBox(height: 8),
           ],
           if (gradedAt != null && gradedBy != 'N/A')
-            _IconRow(Icons.access_time,
-                'Graded at: ${_formatDateTime(gradedAtStr)}', cs.outline),
+            _IconRow(
+              Icons.access_time,
+              'Graded at: ${_formatDateTime(gradedAtStr)}',
+              cs.outline,
+            ),
         ],
       ),
     );
@@ -1574,17 +1743,23 @@ class _ScoreBreakdownRow extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Reading Assessment Score',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: cs.outline,
-                      fontWeight: FontWeight.w500)),
+              Text(
+                'Reading Assessment Score',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.outline,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text('${score.toStringAsFixed(1)} out of 5',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: color)),
+              Text(
+                '${score.toStringAsFixed(1)} out of 5',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
             ],
           ),
           Column(
@@ -1595,16 +1770,22 @@ class _ScoreBreakdownRow extends StatelessWidget {
                     return Icon(Icons.star, size: 20, color: color);
                   if (i == fullStars && hasHalfStar)
                     return Icon(Icons.star_half, size: 20, color: color);
-                  return Icon(Icons.star_border,
-                      size: 20, color: cs.outline.withOpacity(0.3));
+                  return Icon(
+                    Icons.star_border,
+                    size: 20,
+                    color: cs.outline.withOpacity(0.3),
+                  );
                 }),
               ),
               const SizedBox(height: 4),
-              Text('${(percent * 100).toInt()}%',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: cs.outline,
-                      fontWeight: FontWeight.w500)),
+              Text(
+                '${(percent * 100).toInt()}%',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.outline,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ],
@@ -1620,9 +1801,10 @@ class _DetailLabel extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) => Text(text,
-      style: TextStyle(
-          fontSize: 13, fontWeight: FontWeight.w600, color: color));
+  Widget build(BuildContext context) => Text(
+    text,
+    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color),
+  );
 }
 
 class _IconRow extends StatelessWidget {
@@ -1634,29 +1816,29 @@ class _IconRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(text,
-                style: TextStyle(
-                    fontSize: 13,
-                    color: color,
-                    fontWeight: FontWeight.w500)),
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, size: 16, color: color),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 13,
+            color: color,
+            fontWeight: FontWeight.w500,
           ),
-        ],
-      );
+        ),
+      ),
+    ],
+  );
 }
 
 // ---------------------------------------------------------------------------
 
 /// Compact list tile used in the Reports tab for recent items.
 class _RecentGradeListTile extends StatelessWidget {
-  const _RecentGradeListTile({
-    required this.grade,
-    required this.isQuiz,
-  });
+  const _RecentGradeListTile({required this.grade, required this.isQuiz});
 
   final Map<String, dynamic> grade;
   final bool isQuiz;
@@ -1665,17 +1847,18 @@ class _RecentGradeListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    final title = (grade[isQuiz ? 'quiz_title' : 'title'] as String?) ??
+    final title =
+        (grade[isQuiz ? 'quiz_title' : 'title'] as String?) ??
         (isQuiz ? 'Quiz Submission' : 'Reading Assessment');
-    final dateStr =
-        grade[isQuiz ? 'submitted_at' : 'graded_at'] as String?;
+    final dateStr = grade[isQuiz ? 'submitted_at' : 'graded_at'] as String?;
     final iconColor = isQuiz ? cs.tertiary : cs.primary;
 
     String trailingLabel;
     Color trailingColor;
 
     if (isQuiz) {
-      final pct = ((grade['score'] ?? 0) as num).toDouble() /
+      final pct =
+          ((grade['score'] ?? 0) as num).toDouble() /
           ((grade['max_score'] ?? 1) as num).toDouble();
       trailingLabel = '${(pct * 100).toInt()}%';
       trailingColor = _percentColor(pct);
@@ -1691,37 +1874,48 @@ class _RecentGradeListTile extends StatelessWidget {
         elevation: 1,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ListTile(
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
           leading: _CircleIcon(
-              icon: isQuiz ? Icons.quiz : Icons.book,
-              color: iconColor,
-              iconSize: 20,
-              padding: 10),
-          title: Text(title,
-              style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
-                  color: cs.onSurface)),
-          subtitle: dateStr != null
-              ? Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(_formatDateTime(dateStr),
-                      style: TextStyle(fontSize: 12, color: cs.outline)),
-                )
-              : null,
+            icon: isQuiz ? Icons.quiz : Icons.book,
+            color: iconColor,
+            iconSize: 20,
+            padding: 10,
+          ),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+              color: cs.onSurface,
+            ),
+          ),
+          subtitle:
+              dateStr != null
+                  ? Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      _formatDateTime(dateStr),
+                      style: TextStyle(fontSize: 12, color: cs.outline),
+                    ),
+                  )
+                  : null,
           trailing: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: trailingColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(trailingLabel,
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: trailingColor)),
+            child: Text(
+              trailingLabel,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: trailingColor,
+              ),
+            ),
           ),
         ),
       ),
@@ -1769,15 +1963,20 @@ class _EmptyStateCard extends StatelessWidget {
         children: [
           Icon(icon, size: 60, color: cs.outline.withOpacity(0.4)),
           const SizedBox(height: 12),
-          Text(title,
-              style: TextStyle(
-                  color: cs.onSurface.withOpacity(0.6),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500)),
+          Text(
+            title,
+            style: TextStyle(
+              color: cs.onSurface.withOpacity(0.6),
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(subtitle,
-              style: TextStyle(color: cs.outline, fontSize: 14),
-              textAlign: TextAlign.center),
+          Text(
+            subtitle,
+            style: TextStyle(color: cs.outline, fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );

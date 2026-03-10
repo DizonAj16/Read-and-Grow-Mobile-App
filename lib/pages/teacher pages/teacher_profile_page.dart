@@ -783,7 +783,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
         ),
         Container(
           color: Colors.black.withOpacity(
-            0.4,
+            0.7,
           ), // Darker overlay for better text contrast
           width: double.infinity,
           height: double.infinity,
