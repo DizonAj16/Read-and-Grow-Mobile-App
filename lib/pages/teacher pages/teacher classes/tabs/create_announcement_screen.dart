@@ -86,7 +86,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Announcement created successfully!'),
-            backgroundColor: Theme.of(context).colorScheme.primary,
+            backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),

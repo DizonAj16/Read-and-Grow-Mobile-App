@@ -119,14 +119,14 @@ class LandingPage extends StatelessWidget {
                 color: Colors.white.withOpacity(0.92),
               ),
         ),
-        const SizedBox(height: 6),
-        Text(
-          kAppVersion,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.white70,
-                letterSpacing: 1.1,
-              ),
-        ),
+        // const SizedBox(height: 6),
+        // Text(
+        //   kAppVersion,
+        //   style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        //         color: Colors.white70,
+        //         letterSpacing: 1.1,
+        //       ),
+        // ),
       ],
     );
   }
