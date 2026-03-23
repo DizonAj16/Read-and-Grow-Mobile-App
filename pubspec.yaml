@@ -60,7 +60,7 @@ dependencies:
   flutter_custom_clippers: ^2.1.0
   flutter_refresh_indicator: ^1.1.1
   supabase_flutter: ^2.5.0
-  fl_chart: ^1.1.0
+  fl_chart: 0.66.2
   record: ^6.1.2
   just_audio: ^0.9.26
   percent_indicator: ^4.2.3
