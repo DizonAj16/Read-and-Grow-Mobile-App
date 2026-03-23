@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:deped_reading_app_laravel/api/classroom_service.dart';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/tabs/essay_grading_tab.dart';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/tabs/students_management_page.dart';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/tabs/materials_page.dart';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/tabs/tasks_page.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/classroom%20tabs/essay_grading_tab.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/classroom%20tabs/students_management_page.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/classroom%20tabs/materials_page.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/classroom%20tabs/tasks_page.dart';
 // Import the 3 pages you want to move inside classroom
 import 'package:deped_reading_app_laravel/pages/teacher%20pages/reading_recordings_grading_page.dart';
 import 'package:deped_reading_app_laravel/pages/teacher%20pages/view_graded_recordings_page.dart';
@@ -12,9 +12,9 @@ import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher_reading_
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'tabs/class_info.dart';
-import 'tabs/class_analytics_page.dart';
-import 'tabs/student_reading_progress_page.dart'; // Import the new progress page
+import 'classroom tabs/class_info.dart';
+import 'classroom tabs/class_analytics_page.dart';
+import 'classroom tabs/student_reading_progress_page.dart'; // Import the new progress page
 
 class ClassDetailsPage extends StatefulWidget {
   final Map<String, dynamic> classDetails;

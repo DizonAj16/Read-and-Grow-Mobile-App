@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/tabs/add_lesson_with_essay_screen.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/classroom%20tabs/add_lesson_with_essay_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';

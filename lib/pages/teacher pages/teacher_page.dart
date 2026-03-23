@@ -15,12 +15,12 @@ import 'teacher_profile_page.dart';
 // ─────────────────────────────────────────────
 
 class _Routes {
-  static const dashboard = '/dashboard';
-  static const pupils = '/pupils';
+  static const dashboard   = '/dashboard';
+  static const pupils      = '/pupils';
   static const submissions = '/submissions';
-  // static const badges = '/badges';
-  // static const gradeRecordings = '/grade_recordings';
-  // static const viewGraded = '/view_graded_recordings';
+  // static const badges           = '/badges';
+  // static const gradeRecordings  = '/grade_recordings';
+  // static const viewGraded       = '/view_graded_recordings';
   // static const readingMaterials = '/reading_materials';
 }
 
@@ -30,8 +30,8 @@ class _Routes {
 
 class _NavItem {
   final IconData icon;
-  final String title;
-  final String route;
+  final String   title;
+  final String   route;
 
   const _NavItem({
     required this.icon,
@@ -41,7 +41,7 @@ class _NavItem {
 }
 
 // ─────────────────────────────────────────────
-// TeacherPage
+// TeacherPage — root scaffold with drawer nav
 // ─────────────────────────────────────────────
 
 class TeacherPage extends StatefulWidget {
@@ -52,16 +52,18 @@ class TeacherPage extends StatefulWidget {
 }
 
 class _TeacherPageState extends State<TeacherPage> {
+  // Inner navigator key for nested routing
   final _navigatorKey = GlobalKey<NavigatorState>();
 
-  String _currentTitle = 'Dashboard';
-  String _currentRoute = _Routes.dashboard;
-  String _teacherName = 'Teacher';
+  String  _currentTitle   = 'Dashboard';
+  String  _currentRoute   = _Routes.dashboard;
+  String  _teacherName    = 'Teacher';
   String? _profilePicture;
 
+  // Drawer navigation items
   static const _navItems = <_NavItem>[
-    _NavItem(icon: Icons.home_rounded, title: 'Dashboard', route: _Routes.dashboard),
-    _NavItem(icon: Icons.people_rounded, title: 'Manage Pupils', route: _Routes.pupils),
+    _NavItem(icon: Icons.home_rounded,       title: 'Dashboard',                route: _Routes.dashboard),
+    _NavItem(icon: Icons.people_rounded,     title: 'Manage Pupils',            route: _Routes.pupils),
     _NavItem(icon: Icons.assignment_rounded, title: 'Pupil Submissions/Reports', route: _Routes.submissions),
   ];
 
@@ -75,15 +77,17 @@ class _TeacherPageState extends State<TeacherPage> {
 
   // ── Data loading ───────────────────────────
 
+  /// Fetches teacher profile from API; falls back to local prefs on failure.
   Future<void> _loadTeacherData({bool forceRefresh = false}) async {
     try {
+      // Clear stale picture before re-fetching when forced
       if (forceRefresh && mounted) {
         setState(() => _profilePicture = null);
       }
 
       final profileResponse = await SupabaseAuthService.getAuthProfile();
-      final teacherDetails = profileResponse?['profile'] ?? profileResponse ?? {};
-      final teacher = Teacher.fromJson(teacherDetails);
+      final teacherDetails  = profileResponse?['profile'] ?? profileResponse ?? {};
+      final teacher         = Teacher.fromJson(teacherDetails);
 
       await teacher.saveToPrefs();
 
@@ -93,7 +97,7 @@ class _TeacherPageState extends State<TeacherPage> {
 
       if (mounted) {
         setState(() {
-          _teacherName = teacher.name;
+          _teacherName    = teacher.name;
           _profilePicture = profilePicture;
         });
       }
@@ -103,6 +107,7 @@ class _TeacherPageState extends State<TeacherPage> {
     }
   }
 
+  /// Fallback: loads teacher name and picture from SharedPreferences.
   Future<void> _loadTeacherFromPrefs() async {
     try {
       final teacher = await Teacher.fromPrefs();
@@ -113,7 +118,7 @@ class _TeacherPageState extends State<TeacherPage> {
 
       if (mounted) {
         setState(() {
-          _teacherName = teacher.name;
+          _teacherName    = teacher.name;
           _profilePicture = profilePicture;
         });
       }
@@ -121,22 +126,25 @@ class _TeacherPageState extends State<TeacherPage> {
       debugPrint('Failed to load teacher from prefs: $e');
       if (mounted) {
         setState(() {
-          _teacherName = 'Teacher';
+          _teacherName    = 'Teacher';
           _profilePicture = null;
         });
       }
     }
   }
 
+  /// Resolves a Supabase storage path or full URL into a cache-busted public URL.
   String _buildProfilePictureUrl(String path, {bool forceRefresh = false}) {
-    final ts = DateTime.now().microsecondsSinceEpoch;
+    final ts     = DateTime.now().microsecondsSinceEpoch;
     final suffix = '?t=$ts&refresh=${forceRefresh ? 1 : 0}';
 
+    // Already a full URL — strip old params and append fresh ones
     if (path.startsWith('http://') || path.startsWith('https://')) {
       final base = path.contains('?') ? path.split('?').first : path;
       return '$base$suffix';
     }
 
+    // Supabase storage path — get public URL then append cache-buster
     try {
       final cleanPath = path.replaceFirst(RegExp(r'^/'), '');
       final publicUrl = Supabase.instance.client.storage
@@ -151,31 +159,36 @@ class _TeacherPageState extends State<TeacherPage> {
 
   // ── Navigation ─────────────────────────────
 
+  /// Switches the inner navigator to [route] and closes the drawer.
   void _navigateTo(String route, String title) {
     if (_currentRoute == route) return;
+
     setState(() {
       _currentTitle = title;
       _currentRoute = route;
     });
-    Navigator.pop(context);
+
+    Navigator.pop(context); // close drawer
     _navigatorKey.currentState?.pushReplacementNamed(route);
   }
 
+  /// Maps route names to their corresponding page widgets.
   Route _generateRoute(RouteSettings settings) {
     final page = switch (settings.name) {
       _Routes.pupils      => const PupilManagementPage(),
       _Routes.submissions => const StudentSubmissionsPage(),
-      // _Routes.badges            => const BadgesListPage(),
-      // _Routes.gradeRecordings   => const ReadingRecordingsGradingPage(),
-      // _Routes.viewGraded        => const ViewGradedRecordingsPage(),
-      // _Routes.readingMaterials  => const TeacherReadingMaterialsPage(),
-      _               => const TeacherDashboardPage(),
+      // _Routes.badges           => const BadgesListPage(),
+      // _Routes.gradeRecordings  => const ReadingRecordingsGradingPage(),
+      // _Routes.viewGraded       => const ViewGradedRecordingsPage(),
+      // _Routes.readingMaterials => const TeacherReadingMaterialsPage(),
+      _ => const TeacherDashboardPage(),
     };
     return MaterialPageRoute(builder: (_) => page);
   }
 
   // ── Auth ───────────────────────────────────
 
+  /// Signs out the teacher, clears local data, and navigates to landing page.
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
     try {
@@ -185,11 +198,12 @@ class _TeacherPageState extends State<TeacherPage> {
       await prefs.remove('students_data');
 
       if (!mounted) return;
+
       _showLoadingDialog(context);
       await Future.delayed(const Duration(seconds: 1));
 
       if (mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(); // dismiss loading dialog
         Navigator.of(context).pushAndRemoveUntil(
           PageTransition(page: const LandingPage()),
           (route) => false,
@@ -200,7 +214,7 @@ class _TeacherPageState extends State<TeacherPage> {
       if (mounted) {
         _showErrorDialog(
           context,
-          title: 'Logout Failed',
+          title:   'Logout Failed',
           message: 'Unable to logout. Please try again.',
         );
       }
@@ -216,12 +230,16 @@ class _TeacherPageState extends State<TeacherPage> {
 
   // ── Profile ────────────────────────────────
 
+  /// Opens the profile page, clears the cached picture first, then reloads on return.
   Future<void> _openProfile() async {
     setState(() => _profilePicture = null);
+
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const TeacherProfilePage()),
     );
+
+    // Reload in case the teacher updated their info or picture
     await _loadTeacherData();
     if (mounted) setState(() {});
   }
@@ -246,9 +264,9 @@ class _TeacherPageState extends State<TeacherPage> {
       title: Text(
         _currentTitle,
         style: const TextStyle(
-          color: Colors.white,
+          color:      Colors.white,
           fontWeight: FontWeight.w600,
-          fontSize: 18,
+          fontSize:   18,
         ),
       ),
       backgroundColor: Theme.of(context).colorScheme.primary,
@@ -265,8 +283,8 @@ class _TeacherPageState extends State<TeacherPage> {
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+            begin:  Alignment.topCenter,
+            end:    Alignment.bottomCenter,
             colors: [
               Theme.of(context).colorScheme.primary,
               Theme.of(context).colorScheme.primary.withOpacity(0.95),
@@ -277,37 +295,40 @@ class _TeacherPageState extends State<TeacherPage> {
         ),
         child: Column(
           children: [
+            // Scrollable nav items
             Expanded(
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
                   _DrawerHeader(
-                    teacherName: _teacherName,
+                    teacherName:    _teacherName,
                     profilePicture: _profilePicture,
-                    onTap: _openProfile,
+                    onTap:          _openProfile,
                   ),
                   const SizedBox(height: 16),
                   ..._navItems.map(
                     (item) => _DrawerNavItem(
-                      icon: item.icon,
-                      title: item.title,
+                      icon:       item.icon,
+                      title:      item.title,
                       isSelected: _currentRoute == item.route,
-                      onTap: () => _navigateTo(item.route, item.title),
+                      onTap:      () => _navigateTo(item.route, item.title),
                     ),
                   ),
                 ],
               ),
             ),
+
+            // Logout at the bottom
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               child: Column(
                 children: [
                   const Divider(color: Colors.white30, thickness: 1, height: 32),
                   _DrawerNavItem(
-                    icon: Icons.logout_rounded,
-                    title: 'Log out',
+                    icon:       Icons.logout_rounded,
+                    title:      'Log out',
                     isSelected: false,
-                    onTap: _confirmLogout,
+                    onTap:      _confirmLogout,
                   ),
                 ],
               ),
@@ -323,9 +344,10 @@ class _TeacherPageState extends State<TeacherPage> {
 // Drawer sub-widgets
 // ─────────────────────────────────────────────
 
+/// Header section of the drawer showing avatar and teacher name.
 class _DrawerHeader extends StatelessWidget {
-  final String teacherName;
-  final String? profilePicture;
+  final String   teacherName;
+  final String?  profilePicture;
   final VoidCallback onTap;
 
   const _DrawerHeader({
@@ -341,12 +363,13 @@ class _DrawerHeader extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.1),
         borderRadius: const BorderRadius.only(
-          topRight: Radius.circular(20),
+          topRight:    Radius.circular(20),
           bottomRight: Radius.circular(20),
         ),
       ),
       child: Column(
         children: [
+          // Tappable avatar with edit badge
           GestureDetector(
             onTap: onTap,
             child: Stack(
@@ -355,7 +378,7 @@ class _DrawerHeader extends StatelessWidget {
                 Hero(
                   tag: 'teacher-profile-image',
                   child: Container(
-                    width: 100,
+                    width:  100,
                     height: 100,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
@@ -365,23 +388,27 @@ class _DrawerHeader extends StatelessWidget {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
+                          color:      Colors.black.withOpacity(0.2),
                           blurRadius: 10,
-                          offset: const Offset(0, 4),
+                          offset:     const Offset(0, 4),
                         ),
                       ],
                     ),
                     child: CircleAvatar(
                       backgroundColor: Colors.white70,
-                      child: ClipOval(child: _ProfileImage(url: profilePicture)),
+                      child: ClipOval(
+                        child: _ProfileImage(url: profilePicture),
+                      ),
                     ),
                   ),
                 ),
+
+                // Edit badge overlay
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary,
-                    shape: BoxShape.circle,
+                    color:  Theme.of(context).colorScheme.primary,
+                    shape:  BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 2),
                   ),
                   child: const Icon(Icons.edit_rounded, color: Colors.white, size: 14),
@@ -389,26 +416,36 @@ class _DrawerHeader extends StatelessWidget {
               ],
             ),
           ),
+
           const SizedBox(height: 16),
+
+          // Teacher name
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
               teacherName,
               style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
+                color:      Colors.white,
+                fontSize:   18,
                 fontWeight: FontWeight.bold,
-                shadows: [Shadow(color: Colors.black, blurRadius: 6, offset: Offset(1, 1))],
+                shadows: [
+                  Shadow(color: Colors.black, blurRadius: 6, offset: Offset(1, 1)),
+                ],
               ),
               textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+              maxLines:  2,
+              overflow:  TextOverflow.ellipsis,
             ),
           ),
+
           const SizedBox(height: 4),
+
           Text(
             'Teacher',
-            style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
+            style: TextStyle(
+              color:    Colors.white.withOpacity(0.8),
+              fontSize: 14,
+            ),
           ),
         ],
       ),
@@ -416,6 +453,7 @@ class _DrawerHeader extends StatelessWidget {
   }
 }
 
+/// Renders a network profile image with a placeholder fallback.
 class _ProfileImage extends StatelessWidget {
   final String? url;
 
@@ -428,11 +466,12 @@ class _ProfileImage extends StatelessWidget {
     if (url == null || url!.isEmpty) {
       return Image.asset(_placeholder, fit: BoxFit.cover);
     }
+
     return Image.network(
       url!,
-      key: ValueKey(url),
-      fit: BoxFit.cover,
-      cacheWidth: 200,
+      key:         ValueKey(url),
+      fit:         BoxFit.cover,
+      cacheWidth:  200,
       cacheHeight: 200,
       loadingBuilder: (_, child, progress) =>
           progress == null ? child : Image.asset(_placeholder, fit: BoxFit.cover),
@@ -444,10 +483,11 @@ class _ProfileImage extends StatelessWidget {
   }
 }
 
+/// A single tappable row in the drawer navigation list.
 class _DrawerNavItem extends StatelessWidget {
   final IconData icon;
-  final String title;
-  final bool isSelected;
+  final String   title;
+  final bool     isSelected;
   final VoidCallback onTap;
 
   const _DrawerNavItem({
@@ -462,7 +502,7 @@ class _DrawerNavItem extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: isSelected ? Colors.white.withOpacity(0.15) : Colors.transparent,
+        color:        isSelected ? Colors.white.withOpacity(0.15) : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         border: isSelected
             ? Border.all(color: Colors.white.withOpacity(0.3), width: 1)
@@ -470,7 +510,7 @@ class _DrawerNavItem extends StatelessWidget {
       ),
       child: ListTile(
         leading: Container(
-          width: 40,
+          width:  40,
           height: 40,
           decoration: BoxDecoration(
             color: isSelected
@@ -481,19 +521,19 @@ class _DrawerNavItem extends StatelessWidget {
           child: Icon(
             icon,
             color: isSelected ? Colors.white : Colors.white.withOpacity(0.9),
-            size: 20,
+            size:  20,
           ),
         ),
         title: Text(
           title,
           style: TextStyle(
-            color: isSelected ? Colors.white : Colors.white.withOpacity(0.9),
+            color:      isSelected ? Colors.white : Colors.white.withOpacity(0.9),
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-            fontSize: 16,
+            fontSize:   16,
           ),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        minLeadingWidth: 0,
+        contentPadding:    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        minLeadingWidth:   0,
         horizontalTitleGap: 12,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         onTap: onTap,
@@ -506,6 +546,7 @@ class _DrawerNavItem extends StatelessWidget {
 // Dialogs
 // ─────────────────────────────────────────────
 
+/// Confirmation dialog shown before logging out.
 class _LogoutConfirmationDialog extends StatelessWidget {
   final VoidCallback onConfirm;
 
@@ -514,15 +555,17 @@ class _LogoutConfirmationDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      elevation: 8,
+      shape:       RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      elevation:   8,
       shadowColor: Colors.black.withOpacity(0.2),
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Icon
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -531,16 +574,20 @@ class _LogoutConfirmationDialog extends StatelessWidget {
               ),
               child: Icon(Icons.logout_rounded, color: cs.primary, size: 48),
             ),
+
             const SizedBox(height: 20),
+
             Text(
               'Confirm Logout',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: cs.onSurface,
+                color:      cs.onSurface,
               ),
               textAlign: TextAlign.center,
             ),
+
             const SizedBox(height: 12),
+
             Text(
               'You are about to log out. Make sure to save your work before leaving.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -548,20 +595,26 @@ class _LogoutConfirmationDialog extends StatelessWidget {
               ),
               textAlign: TextAlign.center,
             ),
+
             const SizedBox(height: 28),
+
+            // Action buttons
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    icon: Icon(Icons.cancel_outlined, size: 20, color: cs.onSurface.withOpacity(0.7)),
+                    icon:  Icon(Icons.cancel_outlined, size: 20, color: cs.onSurface.withOpacity(0.7)),
                     label: Text(
                       'Cancel',
-                      style: TextStyle(color: cs.onSurface.withOpacity(0.7), fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color:      cs.onSurface.withOpacity(0.7),
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      side: BorderSide(color: cs.outline.withOpacity(0.3), width: 1.5),
+                      shape:   RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      side:    BorderSide(color: cs.outline.withOpacity(0.3), width: 1.5),
                     ),
                     onPressed: () => Navigator.pop(context),
                   ),
@@ -569,7 +622,7 @@ class _LogoutConfirmationDialog extends StatelessWidget {
                 const SizedBox(width: 16),
                 Expanded(
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.logout_rounded, size: 20, color: Colors.white),
+                    icon:  const Icon(Icons.logout_rounded, size: 20, color: Colors.white),
                     label: const Text(
                       'Log Out',
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
@@ -577,9 +630,9 @@ class _LogoutConfirmationDialog extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: cs.error,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 2,
+                      padding:     const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                      shape:       RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation:   2,
                       shadowColor: cs.error.withOpacity(0.3),
                     ),
                     onPressed: onConfirm,
@@ -594,9 +647,10 @@ class _LogoutConfirmationDialog extends StatelessWidget {
   }
 }
 
+/// Shows a non-dismissible loading overlay with a spinner and message.
 void _showLoadingDialog(BuildContext context) {
   showDialog(
-    context: context,
+    context:          context,
     barrierDismissible: false,
     builder: (_) => Dialog(
       backgroundColor: Colors.white,
@@ -611,9 +665,9 @@ void _showLoadingDialog(BuildContext context) {
             Text(
               'Logging out...',
               style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
+                color:      Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.bold,
-                fontSize: 18,
+                fontSize:   18,
               ),
             ),
           ],
@@ -623,6 +677,7 @@ void _showLoadingDialog(BuildContext context) {
   );
 }
 
+/// Shows a simple error dialog with a title, message, and OK button.
 void _showErrorDialog(
   BuildContext context, {
   required String title,
@@ -631,7 +686,7 @@ void _showErrorDialog(
   showDialog(
     context: context,
     builder: (_) => AlertDialog(
-      title: Text(title),
+      title:   Text(title),
       content: Text(message),
       actions: [
         TextButton(
