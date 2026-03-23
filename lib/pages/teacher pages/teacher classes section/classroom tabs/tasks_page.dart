@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:deped_reading_app_laravel/api/task_service.dart';
 import 'package:deped_reading_app_laravel/models/quiz_questions.dart';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/add_quiz_screen.dart';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/classroom%20tabs/view_quiz_screen.dart';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/classroom%20tabs/essay_grading_screen.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes%20section/add_quiz_screen.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes%20section/classroom%20tabs/view_quiz_screen.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes%20section/classroom%20tabs/essay_grading_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';

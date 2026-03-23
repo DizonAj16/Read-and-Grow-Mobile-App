@@ -1,6 +1,6 @@
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/classroom%20tabs/add_lesson_with_essay_screen.dart';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/classroom%20tabs/announcement_list_screen.dart';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/classroom%20tabs/create_announcement_screen.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes%20section/classroom%20tabs/add_lesson_with_essay_screen.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes%20section/classroom%20tabs/announcement_list_screen.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes%20section/classroom%20tabs/create_announcement_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shimmer/shimmer.dart';

@@ -1,8 +1,8 @@
 // screens/announcements_list_screen.dart
 import 'package:deped_reading_app_laravel/api/classroom_service.dart';
 import 'package:deped_reading_app_laravel/models/announcement_model.dart';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/classroom%20tabs/create_announcement_screen.dart';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/classroom%20tabs/update_announcement_dialog.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes%20section/classroom%20tabs/create_announcement_screen.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes%20section/classroom%20tabs/update_announcement_dialog.dart';
 import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20dashboard/cards/announcement_card.dart';
 import 'package:flutter/material.dart';
 

@@ -5,7 +5,7 @@ import 'package:lottie/lottie.dart';
 import 'package:deped_reading_app_laravel/api/material_service.dart';
 import 'package:deped_reading_app_laravel/constants.dart';
 import 'package:deped_reading_app_laravel/models/material_model.dart';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/pdf%20helper/pdf_viewer.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes%20section/pdf%20helper/pdf_viewer.dart';
 import 'package:chewie/chewie.dart';
 import 'package:video_player/video_player.dart';
 import 'package:audioplayers/audioplayers.dart';

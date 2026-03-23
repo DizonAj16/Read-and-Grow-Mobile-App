@@ -1,6 +1,6 @@
 // Add this to your ClassDetailsPage to include an Essay Grading tab
 
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/classroom%20tabs/essay_grading_screen.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes%20section/classroom%20tabs/essay_grading_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 

@@ -41,7 +41,7 @@ class TeacherDashboardClassCard extends StatelessWidget {
               children: [
                 // Drag handle
                 Container(
-                  width: 40,
+                  width: 60,
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
@@ -210,10 +210,10 @@ class TeacherDashboardClassCard extends StatelessWidget {
                     // Section
                     Text(
                       section,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      style: TextStyle(
                         color: Colors.white70,
-                        fontWeight: FontWeight.w600,
                         fontSize: 16,
+                        fontWeight: FontWeight.w500,
                         shadows: [
                           Shadow(
                             offset: Offset(0, 1),
@@ -238,11 +238,11 @@ class TeacherDashboardClassCard extends StatelessWidget {
                           studentCount == 0
                               ? "No students yet"
                               : "$studentCount ${studentCount == 1 ? 'Student' : 'Students'}",
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
+                          style: TextStyle(
+                            color: Colors.white70,
                             fontSize: 14,
-                            shadows: const [
+                            fontWeight: FontWeight.w500,
+                            shadows: [
                               Shadow(
                                 offset: Offset(0, 1),
                                 blurRadius: 1.5,

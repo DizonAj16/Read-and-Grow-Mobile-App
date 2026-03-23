@@ -3,7 +3,7 @@ import 'package:deped_reading_app_laravel/api/classroom_service.dart';
 import 'package:deped_reading_app_laravel/api/prefs_service.dart';
 import 'package:deped_reading_app_laravel/api/user_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/class_details_page.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes%20section/class_details_page.dart';
 import 'package:deped_reading_app_laravel/pages/teacher%20pages/pupil_management_page.dart';
 import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20dashboard/create%20student%20and%20classes/create_class_or_student_dialog.dart';
 import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20dashboard/manage%20classes/delete_class_modal.dart';
@@ -930,6 +930,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           "My Classes",
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
             color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
           ),
         ),
         const SizedBox(height: 10),

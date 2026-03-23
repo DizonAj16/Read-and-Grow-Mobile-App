@@ -286,7 +286,7 @@ class _LoginPageState extends State<LoginPage> {
     return Align(
       alignment: Alignment.centerRight,
       child: TextButton(
-        onPressed: () {}, // TODO: implement forgot password
+        onPressed: _showForgotPasswordDialog,
         child: Text(
           'Forgot Password?',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -382,17 +382,97 @@ class _LoginPageState extends State<LoginPage> {
 
     if (widget.loginType == LoginType.teacher) {
       if (!input.contains('@') || !input.endsWith('@gmail.com')) {
-        return 'Use format: username@gmail.com';
+        return 'Please enter a valid email address (e.g., username@gmail.com)';
       }
     }
 
     if (widget.loginType == LoginType.parent) {
       if (!input.endsWith('@parent.app')) {
-        return 'Use format: username@parent.app';
+        return 'Please enter your parent email in the format: username@parent.app';
       }
     }
 
     return null;
+  }
+
+  /// Convert technical error messages to user-friendly messages
+  String _getUserFriendlyErrorMessage(String error) {
+    final errorLower = error.toLowerCase();
+
+    // Authentication errors
+    if (errorLower.contains('invalid login credentials') ||
+        errorLower.contains('invalid credentials') ||
+        errorLower.contains('wrong password') ||
+        errorLower.contains('incorrect password')) {
+      return 'Incorrect username or password. Please try again.';
+    }
+    
+    if (errorLower.contains('email not confirmed') || 
+        errorLower.contains('email not verified')) {
+      return 'Please verify your email address before logging in. Check your inbox for a verification link.';
+    }
+    
+    if (errorLower.contains('user not found')) {
+      return 'No account found with these credentials. Please check your username/email or sign up.';
+    }
+    
+    // Account status errors
+    if (errorLower.contains('pending approval')) {
+      return 'Your account is pending approval. You will receive an email once approved.';
+    }
+    
+    if (errorLower.contains('deactivated') || 
+        errorLower.contains('inactive')) {
+      return 'This account has been deactivated. Please contact an administrator for assistance.';
+    }
+    
+    if (errorLower.contains('not active')) {
+      return 'Your account is not active. Please contact support for assistance.';
+    }
+    
+    // Network and connection errors
+    if (errorLower.contains('network') || 
+        errorLower.contains('connection') ||
+        errorLower.contains('timeout') ||
+        errorLower.contains('failed to connect')) {
+      return 'Unable to connect to the server. Please check your internet connection and try again.';
+    }
+    
+    // Server errors
+    if (errorLower.contains('500') || 
+        errorLower.contains('internal server error')) {
+      return 'Our server encountered an issue. Please try again in a few minutes.';
+    }
+    
+    if (errorLower.contains('503') || 
+        errorLower.contains('service unavailable')) {
+      return 'The service is temporarily unavailable. Please try again later.';
+    }
+    
+    // Rate limiting
+    if (errorLower.contains('too many requests') || 
+        errorLower.contains('rate limit')) {
+      return 'Too many login attempts. Please wait a few minutes before trying again.';
+    }
+    
+    // Session errors
+    if (errorLower.contains('session') || 
+        errorLower.contains('token')) {
+      return 'Session error. Please try logging in again.';
+    }
+    
+    // Validation errors
+    if (errorLower.contains('invalid email') || 
+        errorLower.contains('email format')) {
+      return 'Please enter a valid email address.';
+    }
+    
+    if (errorLower.contains('password too weak')) {
+      return 'Your password does not meet security requirements. Please reset your password.';
+    }
+    
+    // Default fallback - hide technical details from users
+    return 'Unable to sign in. Please check your credentials and try again, or contact support if the problem persists.';
   }
 
   Future<void> _attemptLogin() async {
@@ -412,7 +492,9 @@ class _LoginPageState extends State<LoginPage> {
       final user = result['user'] as Map<String, dynamic>?;
       final role = (result['role'] as String?) ?? 'student';
 
-      if (user == null || user['id'] == null) throw Exception('Invalid user data');
+      if (user == null || user['id'] == null) {
+        throw Exception('Invalid user data received');
+      }
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('id', user['id']);
@@ -427,19 +509,73 @@ class _LoginPageState extends State<LoginPage> {
       _navigateToDashboard(role, user['id']);
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context); // close loading
-
-      String msg = e.toString().replaceAll('Exception: ', '').trim();
-
-      if (msg.contains('pending approval')) {
-        msg = 'Your teacher account is pending approval from an administrator.';
-      } else if (msg.contains('deactivated') || msg.contains('inactive') || msg.contains('not active')) {
-        msg = 'Your account is currently inactive. Please contact an administrator.';
+      
+      // Close loading overlay
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
       }
 
-      _showErrorDialog(title: 'Login Failed', message: msg);
-      debugPrint('Login error: $e');
+      // Convert technical error to user-friendly message
+      final errorMessage = _getUserFriendlyErrorMessage(e.toString());
+      
+      _showErrorDialog(
+        title: 'Sign In Failed',
+        message: errorMessage,
+      );
+      
+      debugPrint('Login error details: $e');
     }
+  }
+
+  Future<void> _showForgotPasswordDialog() async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Reset Password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Forgot your password?',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _config.forgotPasswordMessage,
+              style: TextStyle(color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.contact_support, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _config.contactMessage,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showSuccessDialog() async {
@@ -456,6 +592,11 @@ class _LoginPageState extends State<LoginPage> {
             const Text(
               'Login Successful!',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Welcome back!',
+              style: TextStyle(color: Colors.grey.shade600),
             ),
           ],
         ),
@@ -477,6 +618,10 @@ class _LoginPageState extends State<LoginPage> {
 
     if (page == null) {
       debugPrint("Unknown role: $role");
+      _showErrorDialog(
+        title: 'Login Error',
+        message: 'Unable to determine your account type. Please contact support.',
+      );
       return;
     }
 
@@ -487,16 +632,16 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-void _showLoadingOverlay(String message) {
+  void _showLoadingOverlay(String message) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => Center(
-        child: Material( // Added Material wrapper
-          type: MaterialType.transparency, // Keeps the background clear
+        child: Material(
+          type: MaterialType.transparency,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-            margin: const EdgeInsets.symmetric(horizontal: 40), // Prevents touching edges
+            margin: const EdgeInsets.symmetric(horizontal: 40),
             decoration: BoxDecoration(
               color: Colors.black87,
               borderRadius: BorderRadius.circular(20),
@@ -508,7 +653,6 @@ void _showLoadingOverlay(String message) {
                   'assets/animation/loading_rainbow.json', 
                   width: 90, 
                   height: 90,
-                  // Ensure lottie doesn't crash if file is missing during dev
                   errorBuilder: (context, error, stackTrace) => 
                       const CircularProgressIndicator(color: Colors.white),
                 ),
@@ -520,7 +664,7 @@ void _showLoadingOverlay(String message) {
                     color: Colors.white, 
                     fontSize: 16, 
                     fontWeight: FontWeight.w600,
-                    decoration: TextDecoration.none, // Explicitly remove underline
+                    decoration: TextDecoration.none,
                   ),
                 ),
               ],
@@ -540,7 +684,12 @@ void _showLoadingOverlay(String message) {
           children: [
             Icon(Icons.error_rounded, color: Theme.of(context).colorScheme.error, size: 32),
             const SizedBox(width: 12),
-            Flexible(child: Text(title, style: TextStyle(color: Theme.of(context).colorScheme.error))),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
           ],
         ),
         content: Text(message),
@@ -575,6 +724,8 @@ class LoginRoleConfig {
   final String helpTitle;
   final String helpText;
   final bool showInstructionBanner;
+  final String forgotPasswordMessage;
+  final String contactMessage;
 
   LoginRoleConfig({
     required this.title,
@@ -592,6 +743,8 @@ class LoginRoleConfig {
     this.helpTitle = 'Need help?',
     this.helpText = '',
     this.showInstructionBanner = false,
+    this.forgotPasswordMessage = 'Please contact your administrator to reset your password.',
+    this.contactMessage = 'For assistance, please contact your school administrator.',
   });
 
   factory LoginRoleConfig.forType(LoginType type) {
@@ -612,6 +765,8 @@ class LoginRoleConfig {
           instructionText: 'You can use either your plain username\nor username@student.app',
           helpTitle: 'Login formats',
           helpText: '• juandelacruz\n• juandelacruz@student.app',
+          forgotPasswordMessage: 'If you forgot your password, please contact your teacher or school administrator to reset it.',
+          contactMessage: 'Your teacher can help you reset your password.',
         );
 
       case LoginType.teacher:
@@ -631,6 +786,8 @@ class LoginRoleConfig {
           instructionText: 'Use your registered email address\n(username@gmail.com)',
           helpTitle: 'Example',
           helpText: 'juandelacruz@gmail.com',
+          forgotPasswordMessage: 'If you forgot your password, use the "Forgot Password" option in your email provider or contact your school administrator.',
+          contactMessage: 'Contact your school IT department for password assistance.',
         );
 
       case LoginType.parent:
@@ -648,7 +805,9 @@ class LoginRoleConfig {
           showInstructionBanner: true,
           instructionText: 'Use your assigned email\n(username@parent.app)',
           helpTitle: 'Credentials',
-          helpText: 'Contact your school admin if you don’t have login details.',
+          helpText: 'Contact your school admin if you don\'t have login details.',
+          forgotPasswordMessage: 'Parent accounts require administrator assistance for password resets.',
+          contactMessage: 'Please contact your child\'s school administrator for password assistance.',
         );
 
       case LoginType.admin:
@@ -666,6 +825,8 @@ class LoginRoleConfig {
           showInstructionBanner: false,
           helpTitle: 'Security Note',
           helpText: 'Access is strictly limited to authorized personnel.',
+          forgotPasswordMessage: 'Please contact the system administrator for password reset assistance.',
+          contactMessage: 'Contact the primary system administrator for help.',
         );
 
       case LoginType.universal:
@@ -682,6 +843,8 @@ class LoginRoleConfig {
           showInstructionBanner: false,
           helpTitle: 'Need help?',
           helpText: 'Use your username or registered email address.',
+          forgotPasswordMessage: 'If you forgot your password, please contact your school administrator.',
+          contactMessage: 'For assistance, please contact support.',
         );
     }
   }

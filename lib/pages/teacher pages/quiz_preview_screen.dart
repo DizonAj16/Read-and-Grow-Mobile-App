@@ -1,5 +1,5 @@
 import 'package:deped_reading_app_laravel/api/classroom_service.dart';
-import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes/class_details_page.dart';
+import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20classes%20section/class_details_page.dart';
 import 'package:flutter/material.dart';
 import '../../../../models/quiz_questions.dart';
 
