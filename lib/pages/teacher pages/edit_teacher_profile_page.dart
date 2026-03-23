@@ -7,6 +7,8 @@ import '../../models/teacher_model.dart';
 import '../../utils/validators.dart';
 import '../../utils/data_validators.dart';
 import '../../utils/database_helpers.dart';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 
 class EditTeacherProfilePage extends StatefulWidget {
   const EditTeacherProfilePage({super.key});
@@ -28,6 +30,7 @@ class _EditTeacherProfilePageState extends State<EditTeacherProfilePage> {
   // State variables
   Teacher? _currentTeacher;
   XFile? _pickedImageFile;
+  Uint8List? _webImageBytes; // ADD THIS
   bool _isLoading = true;
   bool _isSaving = false;
   String? _errorMessage;
@@ -127,24 +130,26 @@ class _EditTeacherProfilePageState extends State<EditTeacherProfilePage> {
     }
   }
 
-  Future<void> _pickImage() async {
-    try {
-      final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-      if (pickedFile != null) {
-        setState(() {
-          _pickedImageFile = pickedFile;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error picking image: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking image: $e')),
-        );
-      }
+Future<void> _pickImage() async {
+  try {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      final bytes = await pickedFile.readAsBytes();
+      setState(() {
+        _pickedImageFile = pickedFile;
+        _webImageBytes = bytes;
+      });
+    }
+  } catch (e) {
+    debugPrint('Error picking image: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error picking image: $e')),
+      );
     }
   }
+}
 
   Future<bool> _checkDuplicateEmail(String email, String excludeUserId) async {
     try {
@@ -239,11 +244,12 @@ class _EditTeacherProfilePageState extends State<EditTeacherProfilePage> {
       // Upload profile picture if selected
       String? profilePictureUrl;
       if (_pickedImageFile != null) {
-        final uploadedUrl = await UserService.uploadProfilePicture(
-          userId: user.id,
-          role: 'teacher',
-          filePath: _pickedImageFile!.path,
-        );
+  final uploadedUrl = await UserService.uploadProfilePicture(
+    userId: user.id,
+    role: 'teacher',
+    filePath: kIsWeb ? _pickedImageFile!.name : _pickedImageFile!.path,
+    fileBytes: kIsWeb ? _webImageBytes : null, // ✅ pass bytes for web
+  );
         if (uploadedUrl != null && uploadedUrl.isNotEmpty) {
           profilePictureUrl = uploadedUrl;
         } else {
@@ -518,24 +524,24 @@ class _EditTeacherProfilePageState extends State<EditTeacherProfilePage> {
                                       ),
                                     ),
                                     child: CircleAvatar(
-                                      radius: 60,
-                                      backgroundColor: Colors.transparent,
-                                      backgroundImage: _pickedImageFile != null
-                                          ? FileImage(File(_pickedImageFile!.path))
-                                          : _currentTeacher?.profilePicture != null &&
-                                                  _currentTeacher!.profilePicture!.isNotEmpty
-                                              ? NetworkImage(_currentTeacher!.profilePicture!)
-                                              : null,
-                                      child: _pickedImageFile == null &&
-                                              (_currentTeacher?.profilePicture == null ||
-                                                  _currentTeacher!.profilePicture!.isEmpty)
-                                          ? Icon(
-                                              Icons.person,
-                                              size: 70,
-                                              color: colorScheme.primary.withOpacity(0.4),
-                                            )
-                                          : null,
-                                    ),
+  radius: 60,
+  backgroundColor: Colors.transparent,
+  backgroundImage: _webImageBytes != null
+      ? MemoryImage(_webImageBytes!) // ✅ Web picked image
+      : _pickedImageFile != null && !kIsWeb
+          ? FileImage(File(_pickedImageFile!.path)) // Mobile picked image
+          : _currentTeacher?.profilePicture != null &&
+                  _currentTeacher!.profilePicture!.isNotEmpty
+              ? NetworkImage(_currentTeacher!.profilePicture!) // Existing profile
+              : null,
+  child: _pickedImageFile == null &&
+          _webImageBytes == null &&
+          (_currentTeacher?.profilePicture == null ||
+              _currentTeacher!.profilePicture!.isEmpty)
+      ? Icon(Icons.person, size: 70,
+          color: colorScheme.primary.withOpacity(0.4))
+      : null,
+),
                                   ),
                                   Positioned(
                                     bottom: 4,

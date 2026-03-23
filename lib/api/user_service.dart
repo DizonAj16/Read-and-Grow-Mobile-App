@@ -413,43 +413,53 @@ class UserService {
     );
   }
 
-  static Future<String?> uploadProfilePicture({
-    required String userId,
-    required String role,
-    required String filePath,
-  }) async {
-    final supabase = Supabase.instance.client;
+static Future<String?> uploadProfilePicture({
+  required String userId,
+  required String role,
+  required String filePath,
+  Uint8List? fileBytes, // ✅ ADD THIS for web support
+}) async {
+  final supabase = Supabase.instance.client;
 
-    try {
-      debugPrint('📸 [UPLOAD_PROFILE] Starting upload - User: $userId, Role: $role');
+  try {
+    debugPrint('📸 [UPLOAD_PROFILE] Starting upload - User: $userId, Role: $role');
 
-      // 1️⃣ Validate inputs
-      if (userId.isEmpty || !Validators.isValidUUID(userId)) {
-        debugPrint('❌ [UPLOAD_PROFILE] Invalid user ID: $userId');
+    // 1️⃣ Validate inputs
+    if (userId.isEmpty || !Validators.isValidUUID(userId)) {
+      debugPrint('❌ [UPLOAD_PROFILE] Invalid user ID: $userId');
+      return null;
+    }
+
+    if (role != 'teacher' && role != 'student') {
+      debugPrint('❌ [UPLOAD_PROFILE] Invalid role: $role');
+      return null;
+    }
+
+    // 2️⃣ Get file bytes — web uses passed bytes, mobile reads from file
+    late Uint8List bytes;
+
+    if (kIsWeb) {
+      // ✅ On web, bytes must be passed in directly
+      if (fileBytes == null || fileBytes.isEmpty) {
+        debugPrint('❌ [UPLOAD_PROFILE] No file bytes provided for web upload');
         return null;
       }
-
-      if (role != 'teacher' && role != 'student') {
-        debugPrint('❌ [UPLOAD_PROFILE] Invalid role: $role');
-        return null;
-      }
-
-      // 2️⃣ Validate file exists
+      bytes = fileBytes;
+    } else {
+      // ✅ On mobile, read from file path
       final originalFile = File(filePath);
       if (!await originalFile.exists()) {
         debugPrint('❌ [UPLOAD_PROFILE] File does not exist: $filePath');
         return null;
       }
 
-      // 3️⃣ Validate file size (max 5MB for profile pictures)
+      // Validate file size on mobile
       final sizeValidation = await validateFileSize(
         originalFile,
         limitMB: FileValidator.defaultMaxSizeMB,
       );
       if (!sizeValidation.isValid) {
-        debugPrint(
-          '❌ [UPLOAD_PROFILE] File too large: ${sizeValidation.getDetailedInfo()}',
-        );
+        debugPrint('❌ [UPLOAD_PROFILE] File too large: ${sizeValidation.getDetailedInfo()}');
         throw FileSizeLimitException(
           FileValidator.backendLimitMessage(FileValidator.defaultMaxSizeMB),
           actualSizeMB: sizeValidation.actualSizeMB,
@@ -457,78 +467,70 @@ class UserService {
         );
       }
 
-      // 4️⃣ Determine bucket and file extension
-      final bucket = role == 'teacher' ? 'materials' : 'materials';
-      final fileExtension = filePath.split('.').last.toLowerCase();
-      final validExtension = (fileExtension == 'jpg' || fileExtension == 'jpeg' || fileExtension == 'png')
-          ? fileExtension
-          : 'png'; // Default to png if invalid
-
-
-      // 5️⃣ Create unique filename with proper extension
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = '$userId-$timestamp.$validExtension';
-
-      // 6️⃣ Read file bytes
-      final fileBytes = await originalFile.readAsBytes();
-      debugPrint('📸 [UPLOAD_PROFILE] Read ${fileBytes.length} bytes');
-
-      // 7️⃣ Determine content type
-      final contentType = validExtension == 'png'
-          ? 'image/png'
-          : 'image/jpeg';
-
-      // 8️⃣ Upload to Supabase Storage
-      debugPrint('📸 [UPLOAD_PROFILE] Uploading to storage...');
-      await supabase.storage.from(bucket).uploadBinary(
-        fileName,
-        fileBytes,
-        fileOptions: FileOptions(
-          upsert: true,
-          contentType: contentType,
-        ),
-      );
-
-      debugPrint('✅ [UPLOAD_PROFILE] File uploaded to storage');
-
-      // 9️⃣ Get public URL
-      final publicUrl = supabase.storage.from(bucket).getPublicUrl(fileName);
-
-      if (publicUrl.isEmpty) {
-        debugPrint('❌ [UPLOAD_PROFILE] Failed to get public URL');
-        throw Exception('Failed to get public URL for uploaded file');
-      }
-
-      debugPrint('✅ [UPLOAD_PROFILE] Public URL: $publicUrl');
-
-      // 🔟 Update database record
-      final table = role == 'teacher' ? 'teachers' : 'students';
-      debugPrint('📸 [UPLOAD_PROFILE] Updating $table table...');
-      debugPrint('📸 [UPLOAD_PROFILE] Using userId: $userId, table: $table');
-      
-      // For teachers and students, the id in their respective tables matches the user id
-      final updateResult = await supabase.from(table).update({
-        'profile_picture': publicUrl,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', userId).select();
-      
-      debugPrint('📸 [UPLOAD_PROFILE] Update result: ${updateResult.length} rows updated');
-
-      if (updateResult.isEmpty) {
-        debugPrint('❌ [UPLOAD_PROFILE] Failed to update database');
-        throw Exception('Failed to update profile picture in database');
-      }
-
-      debugPrint("✅ [UPLOAD_PROFILE] Profile picture uploaded successfully: $publicUrl");
-      return publicUrl;
-    } on FileSizeLimitException {
-      rethrow;
-    } catch (e, stackTrace) {
-      debugPrint("❌ [UPLOAD_PROFILE] Error uploading profile picture: $e");
-      debugPrint('Stack trace: $stackTrace');
-      return null;
+      bytes = await originalFile.readAsBytes();
     }
+
+    debugPrint('📸 [UPLOAD_PROFILE] Got ${bytes.length} bytes');
+
+    // 3️⃣ Determine file extension
+    final fileExtension = filePath.contains('.')
+        ? filePath.split('.').last.toLowerCase()
+        : 'png';
+    final validExtension = ['jpg', 'jpeg', 'png'].contains(fileExtension)
+        ? fileExtension
+        : 'png';
+
+    // 4️⃣ Create unique filename
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = '$userId-$timestamp.$validExtension';
+
+    // 5️⃣ Determine content type
+    final contentType = validExtension == 'png' ? 'image/png' : 'image/jpeg';
+
+    // 6️⃣ Upload to Supabase Storage
+    const bucket = 'materials';
+    debugPrint('📸 [UPLOAD_PROFILE] Uploading to storage...');
+    await supabase.storage.from(bucket).uploadBinary(
+      fileName,
+      bytes,
+      fileOptions: FileOptions(
+        upsert: true,
+        contentType: contentType,
+      ),
+    );
+    debugPrint('✅ [UPLOAD_PROFILE] File uploaded to storage');
+
+    // 7️⃣ Get public URL
+    final publicUrl = supabase.storage.from(bucket).getPublicUrl(fileName);
+    if (publicUrl.isEmpty) {
+      throw Exception('Failed to get public URL for uploaded file');
+    }
+    debugPrint('✅ [UPLOAD_PROFILE] Public URL: $publicUrl');
+
+    // 8️⃣ Update database record
+    final table = role == 'teacher' ? 'teachers' : 'students';
+    final updateResult = await supabase.from(table).update({
+      'profile_picture': publicUrl,
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq('id', userId).select();
+
+    debugPrint('📸 [UPLOAD_PROFILE] Update result: ${updateResult.length} rows updated');
+
+    if (updateResult.isEmpty) {
+      throw Exception('Failed to update profile picture in database');
+    }
+
+    debugPrint('✅ [UPLOAD_PROFILE] Profile picture uploaded successfully: $publicUrl');
+    return publicUrl;
+
+  } on FileSizeLimitException {
+    rethrow;
+  } catch (e, stackTrace) {
+    debugPrint('❌ [UPLOAD_PROFILE] Error uploading profile picture: $e');
+    debugPrint('Stack trace: $stackTrace');
+    return null;
   }
+}
 
   static Future<Map<String, dynamic>?> updateStudentSelf({
     required String userId,

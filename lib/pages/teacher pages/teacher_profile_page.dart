@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 import 'package:deped_reading_app_laravel/api/supabase_auth_service.dart';
@@ -7,12 +6,13 @@ import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:deped_reading_app_laravel/utils/file_validator.dart';
 import '../../models/teacher_model.dart';
 import 'edit_teacher_profile_page.dart';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart'; // for kIsWeb
 
 class TeacherProfilePage extends StatefulWidget {
   const TeacherProfilePage({super.key});
@@ -27,6 +27,7 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
   XFile? _pickedImageFile;
   late Future<Teacher> _teacherFuture;
   bool _isUploading = false;
+  Uint8List? _webImageBytes; 
 
   @override
   void initState() {
@@ -94,365 +95,211 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
     }
   }
 
-  Future<void> _pickAndUploadImage({
-    required String role,
-    required String userId,
-  }) async {
-    try {
-      final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-      if (pickedFile == null) return;
+Future<void> _pickAndUploadImage({
+  required String role,
+  required String userId,
+}) async {
+  try {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile == null) return;
 
-      final sizeValidation = await validateFileSize(
-        File(pickedFile.path),
-        limitMB: FileValidator.defaultMaxSizeMB,
-      );
-      if (!sizeValidation.isValid) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.error_outline, color: Colors.red.shade100, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      sizeValidation.getUserMessage(),
-                      style: TextStyle(
-                        color: Colors.red.shade100,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.red.shade800,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              duration: const Duration(seconds: 4),
-              elevation: 6,
-            ),
-          );
-        }
-        return; // Prevent upload button from triggering
-      }
+    // Read bytes for both web and mobile
+    final bytes = await pickedFile.readAsBytes();
 
-      setState(() {
-        _pickedImageFile = pickedFile;
-      });
-
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) {
-          return Dialog(
-            backgroundColor: Colors.transparent,
-            insetPadding: const EdgeInsets.all(20),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.25),
-                    blurRadius: 25,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Title with icon
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.photo_camera_rounded,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 28,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        "Confirm Upload",
-                        style: Theme.of(
-                          context,
-                        ).textTheme.headlineSmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  // Image preview
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.primary.withOpacity(0.4),
-                        width: 3,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: ClipOval(
-                      child: Image.file(
-                        File(pickedFile.path),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  // Smaller and lighter text
-                  Text(
-                    "Use this image as your profile picture?",
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withOpacity(0.7),
-                      fontWeight: FontWeight.w400,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Buttons with icons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => Navigator.pop(dialogContext, false),
-                          icon: Icon(
-                            Icons.cancel_rounded,
-                            size: 20,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withOpacity(0.8),
-                          ),
-                          label: Text(
-                            "Cancel",
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurface,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 14,
-                              horizontal: 16,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            side: BorderSide(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.outline.withOpacity(0.5),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => Navigator.pop(dialogContext, true),
-                          icon: Icon(
-                            Icons.cloud_upload_rounded,
-                            size: 20,
-                            color: Theme.of(context).colorScheme.onPrimary,
-                          ),
-                          label: Text(
-                            "Upload",
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onPrimary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Theme.of(context).colorScheme.primary,
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 14,
-                              horizontal: 16,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 3,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-
-      if (confirmed != true) {
-        setState(() => _pickedImageFile = null);
-        return;
-      }
-
-      setState(() => _isUploading = true);
-
-      final uploadedUrl = await UserService.uploadProfilePicture(
-        userId: userId,
-        role: role,
-        filePath: pickedFile.path,
-      );
-
-      if (uploadedUrl != null && uploadedUrl.isNotEmpty) {
-        debugPrint('✅ Uploaded Profile URL: $uploadedUrl');
-
-        // Reload teacher data to get the updated profile picture
-        setState(() {
-          _isUploading = false;
-          _pickedImageFile = null;
-        });
-        
-        // Reload teacher data
-        final updatedTeacher = await _loadTeacherData();
-        
-        if (mounted) {
-          setState(() {
-            _teacher = updatedTeacher;
-            _teacherFuture = Future.value(updatedTeacher);
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.green.shade100, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      "Profile picture updated successfully!",
-                      style: TextStyle(
-                        color: Colors.green.shade100,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.green.shade800,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              duration: const Duration(seconds: 3),
-              elevation: 6,
-            ),
-          );
-        }
-      }  else {
-        // Error SnackBar
-        if (mounted) {
-          setState(() {
-            _isUploading = false;
-            _pickedImageFile = null;
-          });
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.error_outline, color: Colors.red.shade100, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      "Failed to upload image. Please try again.",
-                      style: TextStyle(
-                        color: Colors.red.shade100,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.red.shade800,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              duration: const Duration(seconds: 4),
-              elevation: 6,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('❌ Error uploading profile picture: $e');
-      // Exception SnackBar
+    // Validate file size using bytes (works on both web and mobile)
+    if (bytes.lengthInBytes > FileValidator.defaultMaxSizeMB * 1024 * 1024) {
       if (mounted) {
-        setState(() {
-          _isUploading = false;
-          _pickedImageFile = null;
-        });
-        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
-              children: [
-                Icon(
-                  Icons.warning_amber_rounded,
-                  color: Colors.orange.shade100,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    "Error uploading image: ${e.toString().split(':').last}",
-                    style: TextStyle(
-                      color: Colors.orange.shade100,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.orange.shade800,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            duration: const Duration(seconds: 4),
-            elevation: 6,
+            content: Text('File too large. Max size is ${FileValidator.defaultMaxSizeMB}MB.'),
+            backgroundColor: Colors.red.shade800,
           ),
         );
       }
-    } finally {
+      return;
+    }
+
+    setState(() {
+      _pickedImageFile = pickedFile;
+      _webImageBytes = bytes;
+    });
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(20),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.25),
+                  blurRadius: 25,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.photo_camera_rounded,
+                        color: Theme.of(context).colorScheme.primary, size: 28),
+                    const SizedBox(width: 12),
+                    Text("Confirm Upload",
+                        style: Theme.of(context).textTheme.headlineSmall),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+                      width: 3,
+                    ),
+                  ),
+                  child: ClipOval(
+                    // ✅ Use Image.memory on web, Image.file on mobile
+                    child: kIsWeb
+                        ? Image.memory(bytes, fit: BoxFit.cover)
+                        : Image.file(File(pickedFile.path), fit: BoxFit.cover),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  "Use this image as your profile picture?",
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        icon: const Icon(Icons.cancel_rounded, size: 20),
+                        label: const Text("Cancel"),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        icon: const Icon(Icons.cloud_upload_rounded, size: 20),
+                        label: const Text("Upload"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      setState(() {
+        _pickedImageFile = null;
+        _webImageBytes = null;
+      });
+      return;
+    }
+
+    setState(() => _isUploading = true);
+
+    // ✅ Upload using bytes (works on both web and mobile)
+    final uploadedUrl = await UserService.uploadProfilePicture(
+      userId: userId,
+      role: role,
+      filePath: kIsWeb ? pickedFile.name : pickedFile.path,
+      fileBytes: kIsWeb ? bytes : null, // pass bytes for web
+    );
+
+    if (uploadedUrl != null && uploadedUrl.isNotEmpty) {
+      setState(() {
+        _isUploading = false;
+        _pickedImageFile = null;
+        _webImageBytes = null;
+      });
+
+      final updatedTeacher = await _loadTeacherData();
       if (mounted) {
-        setState(() => _isUploading = false);
+        setState(() {
+          _teacher = updatedTeacher;
+          _teacherFuture = Future.value(updatedTeacher);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text("Profile picture updated successfully!"),
+            backgroundColor: Colors.green.shade800,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } else {
+      setState(() {
+        _isUploading = false;
+        _pickedImageFile = null;
+        _webImageBytes = null;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text("Failed to upload image. Please try again."),
+            backgroundColor: Colors.red.shade800,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
       }
     }
+  } catch (e) {
+    debugPrint('❌ Error uploading profile picture: $e');
+    setState(() {
+      _isUploading = false;
+      _pickedImageFile = null;
+      _webImageBytes = null;
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error: ${e.toString().split(':').last}"),
+          backgroundColor: Colors.orange.shade800,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _isUploading = false);
   }
+}
 
   Widget _glassCard({
     required Widget child,
@@ -487,71 +334,49 @@ class _TeacherProfilePageState extends State<TeacherProfilePage> {
     );
   }
 
-  Widget _getProfileImageWidget() {
-    if (_pickedImageFile != null) {
-      return FadeInImage(
-        placeholder: const AssetImage(
-          'assets/placeholder/avatar_placeholder.jpg',
-        ),
-        image: FileImage(File(_pickedImageFile!.path)),
-        fit: BoxFit.cover,
-        fadeInDuration: const Duration(milliseconds: 300),
-        fadeInCurve: Curves.fastEaseInToSlowEaseOut,
-      );
-    } else if (_teacher?.profilePicture != null &&
-        _teacher!.profilePicture!.isNotEmpty) {
-      // Handle profile picture URL - check if it's already a full URL or needs Supabase storage path
-      String profileUrl = _teacher!.profilePicture!;
-      
-      // If not a full URL, assume it's a Supabase storage file path and get public URL
-      if (!profileUrl.startsWith('http')) {
-        try {
-          final supabase = Supabase.instance.client;
-          // Remove leading slash if present
-          final cleanPath = profileUrl.replaceFirst(RegExp(r'^/'), '');
-          profileUrl = supabase.storage
-              .from('materials')
-              .getPublicUrl(cleanPath);
-          debugPrint('🖼️ Normalized teacher profile URL from path: $profileUrl');
-        } catch (e) {
-          debugPrint('⚠️ Error normalizing teacher profile URL: $e');
-          // Fallback: try constructing URL from baseUrl if available
-          String cleanBaseUrl = baseUrl.replaceAll(RegExp(r'/api/?$'), '');
-          final profilePath = _teacher!.profilePicture!.replaceFirst(
-            RegExp(r'^/'),
-            '',
-          );
-          profileUrl = '$cleanBaseUrl/$profilePath';
-        }
-      }
-      
-      // Add cache buster for network images to force refresh
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      if (profileUrl.contains('?')) {
-        // Replace existing query params with new timestamp
-        profileUrl = profileUrl.split('?').first + '?t=$timestamp';
-      } else {
-        profileUrl += '?t=$timestamp';
-      }
-      
-      debugPrint('🖼️ Final teacher profile URL: $profileUrl');
-
-      return FadeInImage.assetNetwork(
-        placeholder: 'assets/placeholder/avatar_placeholder.jpg',
-        image: profileUrl,
-        fit: BoxFit.cover,
-        fadeInDuration: const Duration(milliseconds: 100),
-        fadeInCurve: Curves.fastEaseInToSlowEaseOut,
-        imageErrorBuilder:
-            (context, error, stackTrace) => _buildInitialsAvatar(),
-      );
-    } else {
-      return Image.asset(
-        'assets/placeholder/avatar_placeholder.jpg',
-        fit: BoxFit.cover,
-      );
-    }
+Widget _getProfileImageWidget() {
+  // ✅ Web: use memory bytes
+  if (_webImageBytes != null) {
+    return Image.memory(_webImageBytes!, fit: BoxFit.cover);
   }
+  
+  // Mobile: use file path
+  if (_pickedImageFile != null && !kIsWeb) {
+    return FadeInImage(
+      placeholder: const AssetImage('assets/placeholder/avatar_placeholder.jpg'),
+      image: FileImage(File(_pickedImageFile!.path)),
+      fit: BoxFit.cover,
+    );
+  }
+  
+  // Network image from Supabase
+  if (_teacher?.profilePicture != null && _teacher!.profilePicture!.isNotEmpty) {
+    String profileUrl = _teacher!.profilePicture!;
+    if (!profileUrl.startsWith('http')) {
+      try {
+        final cleanPath = profileUrl.replaceFirst(RegExp(r'^/'), '');
+        profileUrl = Supabase.instance.client.storage
+            .from('materials')
+            .getPublicUrl(cleanPath);
+      } catch (e) {
+        debugPrint('⚠️ Error normalizing URL: $e');
+      }
+    }
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    profileUrl = profileUrl.contains('?')
+        ? '${profileUrl.split('?').first}?t=$timestamp'
+        : '$profileUrl?t=$timestamp';
+
+    return FadeInImage.assetNetwork(
+      placeholder: 'assets/placeholder/avatar_placeholder.jpg',
+      image: profileUrl,
+      fit: BoxFit.cover,
+      imageErrorBuilder: (_, __, ___) => _buildInitialsAvatar(),
+    );
+  }
+  
+  return Image.asset('assets/placeholder/avatar_placeholder.jpg', fit: BoxFit.cover);
+}
 
   Widget _buildInitialsAvatar() {
     return CircleAvatar(

@@ -3,17 +3,12 @@ import 'package:deped_reading_app_laravel/models/teacher_model.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../pages/auth pages/landing_page.dart';
 import '../../widgets/navigation/page_transition.dart';
-import 'badges_list_page.dart';
 import 'pupil_management_page.dart';
 import 'pupil_submissions_and_report_page.dart';
-import 'reading_recordings_grading_page.dart';
 import 'teacher dashboard/teacher_dashboard_page.dart';
 import 'teacher_profile_page.dart';
-import 'teacher_reading_materials_page.dart';
-import 'view_graded_recordings_page.dart';
 
 // ─────────────────────────────────────────────
 // Route constants
