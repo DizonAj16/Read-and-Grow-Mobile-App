@@ -1,0 +1,5 @@
+{
+  "buildCommand": "./vercel_build.sh",
+  "outputDirectory": "build/web",
+  "installCommand": "chmod +x vercel_build.sh"
+}
