@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import '../../api/supabase_auth_service.dart';
 import '../../widgets/appbar/theme_toggle_button.dart';
 import '../../widgets/navigation/page_transition.dart';
@@ -670,8 +669,7 @@ class LoginRoleConfig {
         );
 
       case LoginType.universal:
-      default:
-        return LoginRoleConfig(
+      return LoginRoleConfig(
           title: 'Login',
           subtitle: 'Sign in to your account',
           icon: Icons.login,
