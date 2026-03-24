@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'dart:math';
 import 'package:deped_reading_app_laravel/api/material_service.dart';
 import 'package:deped_reading_app_laravel/models/material_model.dart';
@@ -16,6 +17,8 @@ import 'package:photo_view/photo_view.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:http/http.dart' as http;
+import 'package:deped_reading_app_laravel/utils/html_stub.dart'
+    if (dart.library.html) 'package:deped_reading_app_laravel/utils/html_real.dart';
 
 enum ActionType { view, edit, delete, add, archive }
 
@@ -34,7 +37,8 @@ class _MaterialsPageState extends State<MaterialsPage> {
   final GlobalKey<RefreshIndicatorState> _refreshIndicatorKey =
       GlobalKey<RefreshIndicatorState>();
   bool _isDisposed = false;
-  File? _selectedFile;
+  Uint8List? _selectedFileBytes;
+  String? _selectedFileName;
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   static const double _maxUploadSizeMB = FileValidator.defaultMaxSizeMB;
@@ -91,7 +95,8 @@ class _MaterialsPageState extends State<MaterialsPage> {
     // Reset form fields
     _titleController.clear();
     _descriptionController.clear();
-    _selectedFile = null;
+    _selectedFileBytes = null;
+    _selectedFileName = null;
 
     await showDialog(
       context: context,
@@ -103,63 +108,66 @@ class _MaterialsPageState extends State<MaterialsPage> {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.any,
       allowMultiple: false,
+      withData: true, // ← essential: gives us bytes on web AND native
     );
 
-    if (result != null && result.files.single.path != null) {
-      final file = File(result.files.single.path!);
-      final validation = await validateFileSize(
-        file,
-        limitMB: _maxUploadSizeMB,
-      );
+    if (result == null || result.files.isEmpty) return null;
 
-      if (!validation.isValid) {
-        setState(() => _selectedFile = null);
-        return FileValidator.tooLargeMessage(_maxUploadSizeMB);
-      }
+    final picked = result.files.single;
+    final bytes = picked.bytes; // Uint8List — works on web
+    final name = picked.name; // filename with extension
 
+    if (bytes == null) return 'Could not read file bytes.';
+
+    final validation = FileValidator.validateBytes(
+      bytes,
+      limitMB: _maxUploadSizeMB,
+    );
+    if (!validation.isValid) {
       setState(() {
-        _selectedFile = file;
+        _selectedFileBytes = null;
+        _selectedFileName = null;
       });
+      return validation.errorMessage;
     }
-    return null;
+
+    setState(() {
+      _selectedFileBytes = bytes;
+      _selectedFileName = name;
+    });
+    return null; // no error
   }
 
   Future<void> _uploadMaterial() async {
-    if (_selectedFile == null) return;
+    if (_selectedFileBytes == null || _selectedFileName == null) return;
 
-    final validation = await validateFileSize(
-      _selectedFile!,
+    final validation = FileValidator.validateBytes(
+      _selectedFileBytes!,
       limitMB: _maxUploadSizeMB,
     );
-
     if (!validation.isValid) {
-      _showErrorSnackbar(FileValidator.tooLargeMessage(_maxUploadSizeMB));
+      _showErrorSnackbar(validation.errorMessage ?? 'File too large');
       return;
     }
 
-    // Show file size before uploading
-    final fileSize = await _selectedFile!.length();
-    final fileName = _selectedFile!.path.split('/').last;
-    final fileExtension = fileName.split('.').last.toLowerCase();
-    final materialType = _determineMaterialType(fileExtension);
-    final sizeText = _formatFileSize(fileSize);
+    final ext = _selectedFileName!.split('.').last.toLowerCase();
+    final materialType = _determineMaterialType(ext);
+    final sizeText = _formatFileSize(_selectedFileBytes!.lengthInBytes);
 
-    print('🟡 DEBUG: Uploading file: $fileName');
-    print('🟡 DEBUG: File size: $sizeText');
-    print('🟡 DEBUG: File type: $materialType');
-
-    Navigator.pop(context); // Close the dialog
+    Navigator.pop(context); // close upload dialog
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder:
-          (context) => _buildUploadingDialog(materialType, fileName, sizeText),
+          (_) =>
+              _buildUploadingDialog(materialType, _selectedFileName!, sizeText),
     );
 
     try {
       final success = await MaterialService.uploadMaterialFile(
-        file: _selectedFile!,
+        fileBytes: _selectedFileBytes!,
+        fileName: _selectedFileName!,
         materialTitle: _titleController.text,
         classroomId: widget.classId.toString(),
         materialType: materialType,
@@ -170,19 +178,13 @@ class _MaterialsPageState extends State<MaterialsPage> {
       );
 
       if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(context); // close loading dialog
 
       if (success) {
-        // Use the main context after dialog is closed
-        if (mounted) {
-          _showSuccessSnackbar("$materialType uploaded successfully!");
-        }
+        _showSuccessSnackbar("$materialType uploaded successfully!");
         await _loadMaterials();
       } else {
-        // Use the main context after dialog is closed
-        if (mounted) {
-          _showErrorSnackbar("Failed to upload $materialType.");
-        }
+        _showErrorSnackbar("Failed to upload $materialType.");
       }
     } on FileSizeLimitException catch (e) {
       if (mounted) {
@@ -192,7 +194,6 @@ class _MaterialsPageState extends State<MaterialsPage> {
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        // Use the main context after dialog is closed
         _showErrorSnackbar("Upload error: ${e.toString()}");
       }
     }
@@ -350,14 +351,22 @@ class _MaterialsPageState extends State<MaterialsPage> {
 
   // NEW: Download and open file with external app
   Future<void> _downloadAndOpenFile(MaterialModel material) async {
+    if (kIsWeb) {
+      final anchor =
+          HtmlAnchorElement(href: material.materialFileUrl)
+            ..setAttribute('download', material.materialTitle)
+            ..target = '_blank';
+      htmlDocument.body?.append(anchor);
+      anchor.click();
+      anchor.remove();
+      return;
+    }
+    // Native fallback (unchanged)
     try {
       final response = await http.get(Uri.parse(material.materialFileUrl));
-      final bytes = response.bodyBytes;
-
       final directory = await getTemporaryDirectory();
       final file = File('${directory.path}/${material.materialTitle}');
-      await file.writeAsBytes(bytes);
-
+      await file.writeAsBytes(response.bodyBytes);
       await OpenFile.open(file.path);
     } catch (e) {
       _showErrorSnackbar("Error opening file: ${e.toString()}");
@@ -548,7 +557,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
 
                   const SizedBox(height: 20),
 
-                  // File Picker Section
+                  // File Picker Section label
                   Text(
                     "Select File *",
                     style: TextStyle(
@@ -562,10 +571,12 @@ class _MaterialsPageState extends State<MaterialsPage> {
 
                   const SizedBox(height: 8),
 
-                  // File selection area
+                  // ── File selection tap area ──────────────────────────────────
                   InkWell(
                     onTap: () async {
+                      // _pickFile() now stores into _selectedFileBytes/_selectedFileName
                       final validationMessage = await _pickFile();
+                      // Refresh dialog state so the selected-file card appears
                       setDialogState(() {
                         errorMessage = validationMessage;
                       });
@@ -600,7 +611,8 @@ class _MaterialsPageState extends State<MaterialsPage> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            _selectedFile != null
+                            // ✅ Check _selectedFileBytes instead of _selectedFile
+                            _selectedFileBytes != null
                                 ? "Change File"
                                 : "Tap to select file",
                             style: TextStyle(
@@ -625,8 +637,10 @@ class _MaterialsPageState extends State<MaterialsPage> {
                     ),
                   ),
 
-                  // Selected file display
-                  if (_selectedFile != null) ...[
+                  // ── Selected file display card ───────────────────────────────
+                  // ✅ Condition uses _selectedFileBytes + _selectedFileName
+                  if (_selectedFileBytes != null &&
+                      _selectedFileName != null) ...[
                     const SizedBox(height: 16),
                     Container(
                       padding: const EdgeInsets.all(12),
@@ -643,8 +657,9 @@ class _MaterialsPageState extends State<MaterialsPage> {
                       ),
                       child: Row(
                         children: [
+                          // ✅ Pass filename string instead of File.path
                           Icon(
-                            _getFileIcon(_selectedFile!.path),
+                            _getFileIcon(_selectedFileName!),
                             color: Theme.of(context).colorScheme.primary,
                             size: 20,
                           ),
@@ -653,8 +668,9 @@ class _MaterialsPageState extends State<MaterialsPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // ✅ Use _selectedFileName directly (no .path.split('/').last)
                                 Text(
-                                  _selectedFile!.path.split('/').last,
+                                  _selectedFileName!,
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
@@ -664,29 +680,22 @@ class _MaterialsPageState extends State<MaterialsPage> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                FutureBuilder<int>(
-                                  future: _selectedFile!.length(),
-                                  builder: (context, snapshot) {
-                                    if (snapshot.hasData) {
-                                      final size = snapshot.data!;
-                                      final sizeText = _formatFileSize(size);
-                                      return Text(
-                                        sizeText,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .onSurface
-                                              .withOpacity(0.6),
-                                        ),
-                                      );
-                                    }
-                                    return const SizedBox();
-                                  },
+                                // ✅ No FutureBuilder needed — size is already in bytes
+                                Text(
+                                  _formatFileSize(
+                                    _selectedFileBytes!.lengthInBytes,
+                                  ),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface.withOpacity(0.6),
+                                  ),
                                 ),
                               ],
                             ),
                           ),
+                          // ✅ Clear button nulls out both new fields
                           IconButton(
                             icon: Icon(
                               Icons.close,
@@ -697,7 +706,8 @@ class _MaterialsPageState extends State<MaterialsPage> {
                             ),
                             onPressed: () {
                               setDialogState(() {
-                                _selectedFile = null;
+                                _selectedFileBytes = null;
+                                _selectedFileName = null;
                                 errorMessage = null;
                               });
                             },
@@ -731,22 +741,20 @@ class _MaterialsPageState extends State<MaterialsPage> {
                       const SizedBox(width: 12),
                       ElevatedButton(
                         onPressed: () {
-                          if (_titleController.text.isEmpty) {
+                          if (_titleController.text.trim().isEmpty) {
                             setDialogState(() {
                               errorMessage =
                                   "Please enter a title for the material";
                             });
                             return;
                           }
-
-                          if (_selectedFile == null) {
+                          // ✅ Check _selectedFileBytes instead of _selectedFile
+                          if (_selectedFileBytes == null) {
                             setDialogState(() {
                               errorMessage = "Please select a file to upload";
                             });
                             return;
                           }
-
-                          // If validation passes, proceed with upload
                           _uploadMaterial();
                         },
                         style: ElevatedButton.styleFrom(
@@ -1697,26 +1705,18 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
         _errorMessage = null;
       });
 
-      print('🟡 DEBUG: Video URL received: ${widget.videoUrl}');
-
       if (!_isValidUrl(widget.videoUrl)) {
         throw Exception('Invalid video URL');
       }
 
-      // Check if URL is HTTP and might cause cleartext issues
-      if (widget.videoUrl.startsWith('http://')) {
-        print(
-          '🟡 DEBUG: HTTP URL detected - may cause cleartext issues on Android',
-        );
-      }
-
-      _videoPlayerController = VideoPlayerController.network(widget.videoUrl);
+      // networkUrl works on both web and native (video_player >= 2.4)
+      _videoPlayerController = VideoPlayerController.networkUrl(
+        Uri.parse(widget.videoUrl),
+      );
 
       await _videoPlayerController.initialize().timeout(
         const Duration(seconds: 120),
-        onTimeout: () {
-          throw TimeoutException('Video took too long to load');
-        },
+        onTimeout: () => throw TimeoutException('Video took too long to load'),
       );
 
       _chewieController = ChewieController(
@@ -1731,22 +1731,19 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
               children: [
                 const Icon(Icons.error, size: 64, color: Colors.red),
                 const SizedBox(height: 16),
-                Text(
+                const Text(
                   'Video playback error',
                   style: TextStyle(color: Colors.white, fontSize: 18),
                 ),
                 const SizedBox(height: 8),
-                Text(
+                const Text(
                   'This may be due to HTTP restrictions on Android',
                   style: TextStyle(color: Colors.grey),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: () {
-                    // Open video in external player as fallback
-                    _openVideoExternally(widget.videoUrl);
-                  },
+                  onPressed: () => _openVideoExternally(widget.videoUrl),
                   child: const Text('Open in external player'),
                 ),
               ],
@@ -1755,52 +1752,48 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
         },
       );
 
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = e.toString();
-
-        // Check for cleartext error specifically
-        if (e.toString().contains('Cleartext') ||
-            e.toString().contains('cleartext')) {
-          _errorMessage =
-              'HTTP video playback blocked. '
-              'This is an Android security restriction. '
-              'Try using HTTPS or open in external player.';
-        }
+        _errorMessage =
+            (e.toString().contains('Cleartext') ||
+                    e.toString().contains('cleartext'))
+                ? 'HTTP video playback blocked. '
+                    'This is an Android security restriction. '
+                    'Try using HTTPS or open in external player.'
+                : e.toString();
       });
-
-      print('🔴 DEBUG: Video initialization error: $e');
     }
   }
 
-  // Fallback: Open video in external player
+  // Web-safe external open
   Future<void> _openVideoExternally(String videoUrl) async {
+    if (kIsWeb) {
+      // Open in a new browser tab on web
+      // ignore: avoid_web_libraries_in_flutter
+      htmlWindow.open(videoUrl, '_blank');
+      return;
+    }
+    // Native: download to temp dir and open with system player
     try {
-      // Download and open with external app
       final response = await http.get(Uri.parse(videoUrl));
-      final bytes = response.bodyBytes;
-
       final directory = await getTemporaryDirectory();
       final file = File('${directory.path}/video_temp.mp4');
-      await file.writeAsBytes(bytes);
-
+      await file.writeAsBytes(response.bodyBytes);
       await OpenFile.open(file.path);
     } catch (e) {
-      print('🔴 DEBUG: Error opening video externally: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to open video: ${e.toString()}')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to open video: ${e.toString()}')),
+        );
+      }
     }
   }
 
   bool _isValidUrl(String url) {
     try {
-      final uri = Uri.parse(url);
-      return uri.isAbsolute;
+      return Uri.parse(url).isAbsolute;
     } catch (_) {
       return false;
     }
@@ -1821,7 +1814,6 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         actions: [
-          // Add a button to open in external player as fallback
           IconButton(
             icon: const Icon(Icons.open_in_new),
             onPressed: () => _openVideoExternally(widget.videoUrl),
@@ -1857,14 +1849,14 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
             children: [
               const Icon(Icons.error_outline, size: 64, color: Colors.red),
               const SizedBox(height: 16),
-              Text(
+              const Text(
                 'Video playback failed',
                 style: TextStyle(color: Colors.white, fontSize: 18),
               ),
               const SizedBox(height: 12),
               Text(
                 _errorMessage!,
-                style: TextStyle(color: Colors.grey),
+                style: const TextStyle(color: Colors.grey),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),

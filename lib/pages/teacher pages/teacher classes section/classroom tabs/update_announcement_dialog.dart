@@ -1,10 +1,12 @@
 // dialogs/update_announcement_dialog.dart
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:deped_reading_app_laravel/api/classroom_service.dart';
 import 'package:deped_reading_app_laravel/models/announcement_model.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 
 class UpdateAnnouncementDialog extends StatefulWidget {
   final Announcement announcement;
@@ -17,38 +19,38 @@ class UpdateAnnouncementDialog extends StatefulWidget {
   });
 
   @override
-  State<UpdateAnnouncementDialog> createState() => _UpdateAnnouncementDialogState();
+  State<UpdateAnnouncementDialog> createState() =>
+      _UpdateAnnouncementDialogState();
 }
 
 class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
-  
+
   bool _isUpdating = false;
   int _titleLength = 0;
   int _contentLength = 0;
-  File? _selectedImage;
-  String? _imageUrl;
+
+  // ✅ Replace File? _selectedImage with bytes + name
+  Uint8List? _selectedImageBytes;
+  String? _selectedImageName;
+
+  String? _imageUrl;      // existing image from the announcement
   bool _removeImage = false;
 
   @override
   void initState() {
     super.initState();
-    _titleController.text = widget.announcement.title;
+    _titleController.text   = widget.announcement.title;
     _contentController.text = widget.announcement.content;
-    _imageUrl = widget.announcement.imageUrl;
-    
+    _imageUrl               = widget.announcement.imageUrl;
+
     _titleController.addListener(() {
-      setState(() {
-        _titleLength = _titleController.text.length;
-      });
+      setState(() => _titleLength = _titleController.text.length);
     });
-    
     _contentController.addListener(() {
-      setState(() {
-        _contentLength = _contentController.text.length;
-      });
+      setState(() => _contentLength = _contentController.text.length);
     });
   }
 
@@ -59,19 +61,40 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
     super.dispose();
   }
 
+  // ✅ Unified pick: FilePicker on web, ImagePicker on native
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1200,
-      maxHeight: 1200,
-      imageQuality: 85,
-    );
+    if (kIsWeb) {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true,
+      );
 
-    if (pickedFile != null) {
+      if (result == null || result.files.isEmpty) return;
+      final picked = result.files.single;
+      if (picked.bytes == null) return;
+
       setState(() {
-        _selectedImage = File(pickedFile.path);
-        _removeImage = false;
+        _selectedImageBytes = picked.bytes;
+        _selectedImageName  = picked.name;
+        _removeImage        = false;
+      });
+    } else {
+      final picker     = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+
+      if (pickedFile == null) return;
+
+      final bytes = await pickedFile.readAsBytes();
+      setState(() {
+        _selectedImageBytes = bytes;
+        _selectedImageName  = pickedFile.name;
+        _removeImage        = false;
       });
     }
   }
@@ -79,52 +102,54 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
   Future<void> _updateAnnouncement() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isUpdating = true;
-    });
+    setState(() => _isUpdating = true);
 
     try {
       final announcement = await ClassroomService.updateAnnouncement(
         announcementId: widget.announcement.id,
-        title: _titleController.text.trim(),
-        content: _contentController.text.trim(),
-        imagePath: _selectedImage?.path,
+        title:          _titleController.text.trim(),
+        content:        _contentController.text.trim(),
+        // ✅ Pass bytes + name instead of imagePath
+        imageBytes:  _selectedImageBytes,
+        imageName:   _selectedImageName,
         removeImage: _removeImage,
       );
 
       if (announcement != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Announcement updated successfully!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-        
-        widget.onUpdated();
-        Navigator.pop(context);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content:         Text('Announcement updated successfully!'),
+              backgroundColor: Colors.green,
+              duration:        Duration(seconds: 2),
+            ),
+          );
+          widget.onUpdated();
+          Navigator.pop(context);
+        }
       } else {
         throw Exception('Failed to update announcement');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:         Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration:        const Duration(seconds: 2),
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isUpdating = false;
-      });
+      if (mounted) setState(() => _isUpdating = false);
     }
   }
 
   Widget _buildImagePreview() {
     if (_removeImage) return const SizedBox.shrink();
-    
-    if (_selectedImage != null) {
+
+    // ── Newly picked image ──────────────────────────────────────────────────
+    if (_selectedImageBytes != null) {
       return Column(
         children: [
           const SizedBox(height: 16),
@@ -132,15 +157,16 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.file(
-                  _selectedImage!,
-                  width: double.infinity,
+                // ✅ Image.memory works on web + native
+                child: Image.memory(
+                  _selectedImageBytes!,
+                  width:  double.infinity,
                   height: 150,
-                  fit: BoxFit.cover,
+                  fit:    BoxFit.cover,
                 ),
               ),
               Positioned(
-                top: 8,
+                top:   8,
                 right: 8,
                 child: Container(
                   decoration: const BoxDecoration(
@@ -151,7 +177,8 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
                     icon: const Icon(Icons.close, color: Colors.white, size: 20),
                     onPressed: () {
                       setState(() {
-                        _selectedImage = null;
+                        _selectedImageBytes = null;
+                        _selectedImageName  = null;
                       });
                     },
                   ),
@@ -165,29 +192,31 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
             children: [
               TextButton.icon(
                 onPressed: _pickImage,
-                icon: const Icon(Icons.change_circle_outlined),
+                icon:  const Icon(Icons.change_circle_outlined),
                 label: const Text('Change Image'),
               ),
               const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: () {
                   setState(() {
-                    _removeImage = true;
-                    _selectedImage = null;
-                    _imageUrl = null;
+                    _removeImage        = true;
+                    _selectedImageBytes = null;
+                    _selectedImageName  = null;
+                    _imageUrl           = null;
                   });
                 },
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.red,
-                ),
-                icon: const Icon(Icons.delete_outline),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                icon:  const Icon(Icons.delete_outline),
                 label: const Text('Remove'),
               ),
             ],
           ),
         ],
       );
-    } else if (_imageUrl != null && _imageUrl!.isNotEmpty && !_removeImage) {
+    }
+
+    // ── Existing image from the announcement ────────────────────────────────
+    if (_imageUrl != null && _imageUrl!.isNotEmpty) {
       return Column(
         children: [
           const SizedBox(height: 16),
@@ -197,15 +226,15 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
                 borderRadius: BorderRadius.circular(8),
                 child: Image.network(
                   _imageUrl!,
-                  width: double.infinity,
+                  width:  double.infinity,
                   height: 150,
-                  fit: BoxFit.cover,
+                  fit:    BoxFit.cover,
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
                     return Container(
                       height: 150,
-                      color: Colors.grey[200],
-                      child: Center(
+                      color:  Colors.grey[200],
+                      child:  Center(
                         child: CircularProgressIndicator(
                           value: loadingProgress.expectedTotalBytes != null
                               ? loadingProgress.cumulativeBytesLoaded /
@@ -218,11 +247,11 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       height: 150,
-                      color: Colors.grey[200],
-                      child: const Center(
+                      color:  Colors.grey[200],
+                      child:  const Center(
                         child: Icon(
                           Icons.broken_image,
-                          size: 48,
+                          size:  48,
                           color: Colors.grey,
                         ),
                       ),
@@ -231,7 +260,7 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
                 ),
               ),
               Positioned(
-                top: 8,
+                top:   8,
                 right: 8,
                 child: Container(
                   decoration: const BoxDecoration(
@@ -243,7 +272,7 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
                     onPressed: () {
                       setState(() {
                         _removeImage = true;
-                        _imageUrl = null;
+                        _imageUrl    = null;
                       });
                     },
                   ),
@@ -257,7 +286,7 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
             children: [
               TextButton.icon(
                 onPressed: _pickImage,
-                icon: const Icon(Icons.change_circle_outlined),
+                icon:  const Icon(Icons.change_circle_outlined),
                 label: const Text('Change Image'),
               ),
               const SizedBox(width: 8),
@@ -265,39 +294,38 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
                 onPressed: () {
                   setState(() {
                     _removeImage = true;
-                    _imageUrl = null;
+                    _imageUrl    = null;
                   });
                 },
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.red,
-                ),
-                icon: const Icon(Icons.delete_outline),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                icon:  const Icon(Icons.delete_outline),
                 label: const Text('Remove'),
               ),
             ],
           ),
         ],
       );
-    } else {
-      return Column(
-        children: [
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: _pickImage,
-            icon: const Icon(Icons.add_photo_alternate_outlined),
-            label: const Text('Add Image'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 50),
-            ),
-          ),
-        ],
-      );
     }
+
+    // ── No image yet — show picker button ───────────────────────────────────
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: _pickImage,
+          icon:  const Icon(Icons.add_photo_alternate_outlined),
+          label: const Text('Add Image'),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 50),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final theme       = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return AlertDialog(
@@ -306,7 +334,7 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
         child: Form(
           key: _formKey,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize:     MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Title field
@@ -318,15 +346,16 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
               ),
               const SizedBox(height: 8),
               TextFormField(
-                controller: _titleController,
-                maxLength: 100,
+                controller:           _titleController,
+                maxLength:            100,
                 maxLengthEnforcement: MaxLengthEnforcement.enforced,
                 decoration: InputDecoration(
-                  hintText: 'Enter announcement title',
-                  border: OutlineInputBorder(
+                  hintText:   'Enter announcement title',
+                  border:     OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                   suffixText: '$_titleLength/100',
+                  counterText: '',
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -349,17 +378,18 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
               ),
               const SizedBox(height: 8),
               TextFormField(
-                controller: _contentController,
-                maxLines: 5,
-                minLines: 3,
-                maxLength: 1000,
+                controller:           _contentController,
+                maxLines:             5,
+                minLines:             3,
+                maxLength:            1000,
                 maxLengthEnforcement: MaxLengthEnforcement.enforced,
                 decoration: InputDecoration(
-                  hintText: 'Write your announcement here...',
-                  border: OutlineInputBorder(
+                  hintText:   'Write your announcement here...',
+                  border:     OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  suffixText: '$_contentLength/1000',
+                  suffixText:  '$_contentLength/1000',
+                  counterText: '',
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -391,11 +421,11 @@ class _UpdateAnnouncementDialogState extends State<UpdateAnnouncementDialog> {
           ),
           child: _isUpdating
               ? const SizedBox(
-                  width: 20,
+                  width:  20,
                   height: 20,
-                  child: CircularProgressIndicator(
+                  child:  CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
+                    color:       Colors.white,
                   ),
                 )
               : const Text('Update'),

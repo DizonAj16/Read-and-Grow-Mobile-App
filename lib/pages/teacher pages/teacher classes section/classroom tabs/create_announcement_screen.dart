@@ -1,9 +1,10 @@
 // screens/create_announcement_screen.dart
-import 'dart:io';
 import 'package:deped_reading_app_laravel/api/classroom_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart'; // ← add this
 
 class CreateAnnouncementScreen extends StatefulWidget {
   final String classRoomId;
@@ -16,31 +17,31 @@ class CreateAnnouncementScreen extends StatefulWidget {
   });
 
   @override
-  State<CreateAnnouncementScreen> createState() => _CreateAnnouncementScreenState();
+  State<CreateAnnouncementScreen> createState() =>
+      _CreateAnnouncementScreenState();
 }
 
 class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
-  
+
   bool _isSubmitting = false;
   int _titleLength = 0;
   int _contentLength = 0;
-  File? _selectedImage; // Add this
+
+  // ✅ Replace File? _selectedImage with bytes + name
+  Uint8List? _selectedImageBytes;
+  String? _selectedImageName;
 
   @override
   void initState() {
     super.initState();
     _titleController.addListener(() {
-      setState(() {
-        _titleLength = _titleController.text.length;
-      });
+      setState(() => _titleLength = _titleController.text.length);
     });
     _contentController.addListener(() {
-      setState(() {
-        _contentLength = _contentController.text.length;
-      });
+      setState(() => _contentLength = _contentController.text.length);
     });
   }
 
@@ -51,18 +52,41 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     super.dispose();
   }
 
+  // ✅ Unified pick method: FilePicker works on web + native for images
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1200,
-      maxHeight: 1200,
-      imageQuality: 85,
-    );
+    if (kIsWeb) {
+      // On web: use FilePicker with image filter — gives us bytes directly
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true, // essential for web
+      );
 
-    if (pickedFile != null) {
+      if (result == null || result.files.isEmpty) return;
+      final picked = result.files.single;
+      if (picked.bytes == null) return;
+
       setState(() {
-        _selectedImage = File(pickedFile.path);
+        _selectedImageBytes = picked.bytes;
+        _selectedImageName  = picked.name;
+      });
+    } else {
+      // On native: ImagePicker gives better UX (camera + gallery)
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+
+      if (pickedFile == null) return;
+
+      // Read bytes so we have a unified Uint8List on all platforms
+      final bytes = await pickedFile.readAsBytes();
+      setState(() {
+        _selectedImageBytes = bytes;
+        _selectedImageName  = pickedFile.name;
       });
     }
   }
@@ -70,55 +94,57 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   Future<void> _createAnnouncement() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isSubmitting = true;
-    });
+    setState(() => _isSubmitting = true);
 
     try {
       final announcement = await ClassroomService.createAnnouncement(
         classRoomId: widget.classRoomId,
         title: _titleController.text.trim(),
         content: _contentController.text.trim(),
-        imagePath: _selectedImage?.path, // Add image path
+        // ✅ Pass bytes + filename instead of a file path
+        imageBytes: _selectedImageBytes,
+        imageName: _selectedImageName,
       );
 
       if (announcement != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Announcement created successfully!'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Announcement created successfully!'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              duration: const Duration(seconds: 2),
             ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-        
-        Navigator.pop(context);
+          );
+          Navigator.pop(context);
+        }
       } else {
         throw Exception('Failed to create announcement');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
-        ),
-      );
+        );
+      }
     } finally {
-      setState(() {
-        _isSubmitting = false;
-      });
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
   Widget _buildImageSection() {
-    if (_selectedImage != null) {
+    // ✅ Condition uses _selectedImageBytes instead of _selectedImage
+    if (_selectedImageBytes != null) {
       return Column(
         children: [
           const SizedBox(height: 16),
@@ -126,8 +152,9 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.file(
-                  _selectedImage!,
+                // ✅ Image.memory works on web + native from Uint8List
+                child: Image.memory(
+                  _selectedImageBytes!,
                   width: double.infinity,
                   height: 150,
                   fit: BoxFit.contain,
@@ -142,10 +169,15 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                     onPressed: () {
                       setState(() {
-                        _selectedImage = null;
+                        _selectedImageBytes = null;
+                        _selectedImageName  = null;
                       });
                     },
                   ),
@@ -204,9 +236,12 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Class info
+                // Class info chip
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
@@ -263,9 +298,9 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                     ),
                     suffixText: '$_titleLength/100',
                     suffixStyle: theme.textTheme.bodySmall?.copyWith(
-                      color: _titleLength > 90 
-                        ? colorScheme.error 
-                        : colorScheme.onSurface.withOpacity(0.5),
+                      color: _titleLength > 90
+                          ? colorScheme.error
+                          : colorScheme.onSurface.withOpacity(0.5),
                     ),
                     counterText: '',
                   ),
@@ -312,9 +347,9 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                     alignLabelWithHint: true,
                     suffixText: '$_contentLength/1000',
                     suffixStyle: theme.textTheme.bodySmall?.copyWith(
-                      color: _contentLength > 900 
-                        ? colorScheme.error 
-                        : colorScheme.onSurface.withOpacity(0.5),
+                      color: _contentLength > 900
+                          ? colorScheme.error
+                          : colorScheme.onSurface.withOpacity(0.5),
                     ),
                     counterText: '',
                   ),
@@ -343,9 +378,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: _isSubmitting
-                        ? null
-                        : _createAnnouncement,
+                    onPressed: _isSubmitting ? null : _createAnnouncement,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: colorScheme.primary,
                       foregroundColor: colorScheme.onPrimary,

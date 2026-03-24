@@ -40,7 +40,7 @@ class ClassForm extends StatelessWidget {
             labelText: "Grade Level",
             labelStyle: TextStyle(
               color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w400,
             ),
             filled: true,
             fillColor: Theme.of(context).colorScheme.primary.withOpacity(0.07),

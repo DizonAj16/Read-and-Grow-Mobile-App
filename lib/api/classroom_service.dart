@@ -817,7 +817,8 @@ static Future<Announcement?> createAnnouncement({
   required String classRoomId,
   required String title,
   required String content,
-  String? imagePath, // Add this parameter
+  Uint8List? imageBytes, // ← replaces imagePath
+  String? imageName,     // ← original filename (for extension)
 }) async {
   final supabase = Supabase.instance.client;
 
@@ -831,28 +832,22 @@ static Future<Announcement?> createAnnouncement({
     debugPrint('📝 Creating announcement for class: $classRoomId');
 
     String? imageUrl;
-
-    // Upload image if provided
-    if (imagePath != null && imagePath.isNotEmpty) {
-      imageUrl = await _uploadAnnouncementImage(imagePath, classRoomId);
+    if (imageBytes != null && imageName != null) {
+      imageUrl = await _uploadAnnouncementImage(
+        imageBytes,
+        imageName,
+        classRoomId,
+      );
       debugPrint('📸 Image uploaded: $imageUrl');
     }
 
-    // Create announcement data
     final announcementData = <String, dynamic>{
       'class_room_id': classRoomId,
       'teacher_id': currentUser.id,
       'title': title,
       'content': content,
+      if (imageUrl != null && imageUrl.isNotEmpty) 'image_url': imageUrl,
     };
-
-    // Only add image_url if we have a value
-    if (imageUrl != null && imageUrl.isNotEmpty) {
-      announcementData['image_url'] = imageUrl;
-      debugPrint('📝 Adding image_url to announcement data: $imageUrl');
-    } else {
-      debugPrint('📝 No image to add, imageUrl: $imageUrl');
-    }
 
     debugPrint('📝 Announcement data to insert: $announcementData');
 
@@ -869,8 +864,6 @@ static Future<Announcement?> createAnnouncement({
         .single();
 
     debugPrint('✅ Announcement created successfully');
-    debugPrint('✅ Response: $response');
-    
     return Announcement.fromJson(response);
   } catch (e) {
     debugPrint('❌ Error creating announcement: $e');
@@ -944,60 +937,49 @@ static Future<Announcement?> updateAnnouncement({
   required String announcementId,
   required String title,
   required String content,
-  String? imagePath, // Add this parameter
-  bool removeImage = false, // Add this parameter
+  Uint8List? imageBytes, // ← replaces imagePath
+  String? imageName,     // ← original filename (for extension)
+  bool removeImage = false,
 }) async {
   final supabase = Supabase.instance.client;
 
   try {
-    String? imageUrl;
-    final shouldUpdateImage = imagePath != null && imagePath.isNotEmpty;
-    final shouldRemoveImage = removeImage;
+    final shouldUpdateImage = imageBytes != null && imageName != null;
 
-    // If we have a new image, upload it
+    String? imageUrl;
     if (shouldUpdateImage) {
-      // Get class ID first
-      final currentAnnouncement = await getAnnouncementById(announcementId);
-      if (currentAnnouncement != null) {
+      final current = await getAnnouncementById(announcementId);
+      if (current != null) {
         imageUrl = await _uploadAnnouncementImage(
-          imagePath,
-          currentAnnouncement.classRoomId,
+          imageBytes,
+          imageName,
+          current.classRoomId,
         );
         debugPrint('📸 New image uploaded: $imageUrl');
       }
     }
 
-    // Create update data
     final updateData = <String, dynamic>{
       'title': title,
       'content': content,
       'updated_at': DateTime.now().toIso8601String(),
     };
 
-    // Handle image update/removal
-    if (shouldRemoveImage) {
-      // Delete existing image from storage first
-      final currentAnnouncement = await getAnnouncementById(announcementId);
-      if (currentAnnouncement?.imageUrl != null && currentAnnouncement!.imageUrl!.isNotEmpty) {
-        await _deleteAnnouncementImage(currentAnnouncement.imageUrl);
+    if (removeImage) {
+      final current = await getAnnouncementById(announcementId);
+      if (current?.imageUrl != null && current!.imageUrl!.isNotEmpty) {
+        await _deleteAnnouncementImage(current.imageUrl);
       }
-      // Set image_url to null
       updateData['image_url'] = null;
       debugPrint('🗑️ Removing image from announcement');
     } else if (shouldUpdateImage && imageUrl != null && imageUrl.isNotEmpty) {
-      // Delete old image if exists
-      final currentAnnouncement = await getAnnouncementById(announcementId);
-      if (currentAnnouncement?.imageUrl != null && currentAnnouncement!.imageUrl!.isNotEmpty) {
-        await _deleteAnnouncementImage(currentAnnouncement.imageUrl);
+      final current = await getAnnouncementById(announcementId);
+      if (current?.imageUrl != null && current!.imageUrl!.isNotEmpty) {
+        await _deleteAnnouncementImage(current.imageUrl);
       }
-      // Set new image URL
       updateData['image_url'] = imageUrl;
       debugPrint('📝 Setting new image_url: $imageUrl');
-    } else {
-      debugPrint('📝 No image changes to make');
     }
-
-    debugPrint('📝 Update data: $updateData');
 
     final response = await supabase
         .from('announcements')
@@ -1013,8 +995,6 @@ static Future<Announcement?> updateAnnouncement({
         .single();
 
     debugPrint('✅ Announcement updated successfully');
-    debugPrint('✅ Response: $response');
-    
     return Announcement.fromJson(response);
   } catch (e) {
     debugPrint('❌ Error updating announcement: $e');
@@ -1123,48 +1103,41 @@ static Future<Announcement?> updateAnnouncement({
 
 /// Upload announcement image to Supabase storage
 static Future<String?> _uploadAnnouncementImage(
-  String filePath,
+  Uint8List fileBytes,
+  String fileName,
   String classRoomId,
 ) async {
   try {
     final supabase = Supabase.instance.client;
 
-    // Generate unique filename
+    // Derive content type from extension
+    final ext = fileName.split('.').last.toLowerCase();
+    final contentType = switch (ext) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png'           => 'image/png',
+      'gif'           => 'image/gif',
+      'webp'          => 'image/webp',
+      _               => 'image/jpeg', // safe fallback
+    };
+
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final fileName =
-        'announcements/$classRoomId/${timestamp}_${filePath.split('/').last}';
+    final sanitized = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+    final storagePath = 'announcements/$classRoomId/${timestamp}_$sanitized';
 
-    debugPrint('📤 Uploading image to: $fileName');
-
-    // Read file bytes
-    final file = File(filePath);
-    if (!file.existsSync()) {
-      debugPrint('❌ File does not exist: $filePath');
-      return null;
-    }
-
-    final fileBytes = await file.readAsBytes();
+    debugPrint('📤 Uploading image to: $storagePath');
     debugPrint('📏 File size: ${fileBytes.length} bytes');
 
-    // Upload to Supabase storage bucket 'materials' (which already works)
-    try {
-      await supabase.storage
-          .from('materials') // Use 'materials' bucket instead of 'document'
-          .uploadBinary(
-            fileName,
-            fileBytes,
-            fileOptions: const FileOptions(upsert: true),
-          );
-      debugPrint('✅ Image uploaded successfully to storage');
-    } catch (storageError) {
-      debugPrint('❌ Storage upload error: $storageError');
-      return null;
-    }
+    await supabase.storage
+        .from('materials')
+        .uploadBinary(
+          storagePath,
+          fileBytes,
+          fileOptions: FileOptions(upsert: true, contentType: contentType),
+        );
 
-    // Get public URL
     final publicUrl = supabase.storage
-        .from('materials') // Use 'materials' bucket
-        .getPublicUrl(fileName);
+        .from('materials')
+        .getPublicUrl(storagePath);
 
     debugPrint('✅ Image uploaded successfully: $publicUrl');
     return publicUrl;
