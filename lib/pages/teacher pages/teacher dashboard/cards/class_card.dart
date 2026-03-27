@@ -6,22 +6,25 @@ class TeacherDashboardClassCard extends StatelessWidget {
   final int studentCount;
   final String teacherName;
   final String classId;
+  final String? backgroundImage;
+
 
   final VoidCallback onView;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
-  const TeacherDashboardClassCard({
-    Key? key,
-    required this.classId,
-    required this.className,
-    required this.section,
-    required this.studentCount,
-    required this.teacherName,
-    required this.onView,
-    required this.onEdit,
-    required this.onDelete,
-  }) : super(key: key);
+const TeacherDashboardClassCard({
+  Key? key,
+  required this.classId,
+  required this.className,
+  required this.section,
+  required this.studentCount,
+  required this.teacherName,
+  required this.onView,
+  required this.onEdit,
+  required this.onDelete,
+  this.backgroundImage, // ← ADD this
+}) : super(key: key);
 
   void _showActionModal(BuildContext context) {
     showModalBottomSheet(
@@ -157,15 +160,38 @@ class TeacherDashboardClassCard extends StatelessWidget {
           child: Stack(
             children: [
               // Background image
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.asset(
-                  'assets/background/classroombg.jpg',
-                  fit: BoxFit.cover,
-                  height: 150,
-                  width: double.infinity,
-                ),
+ClipRRect(
+  borderRadius: BorderRadius.circular(16),
+  child: backgroundImage != null && backgroundImage!.isNotEmpty
+      ? Image.network(
+          backgroundImage!,
+          fit: BoxFit.cover,
+          height: 150,
+          width: double.infinity,
+          errorBuilder: (_, __, ___) => Image.asset(
+            'assets/background/classroombg.jpg',
+            fit: BoxFit.cover,
+            height: 150,
+            width: double.infinity,
+          ),
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Container(
+              height: 150,
+              color: Colors.grey[300],
+              child: const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
+            );
+          },
+        )
+      : Image.asset(
+          'assets/background/classroombg.jpg',
+          fit: BoxFit.cover,
+          height: 150,
+          width: double.infinity,
+        ),
+),
               // Gradient overlay
               Positioned.fill(
                 child: Container(

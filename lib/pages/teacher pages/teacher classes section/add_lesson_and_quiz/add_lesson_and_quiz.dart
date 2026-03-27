@@ -1,4 +1,5 @@
-import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart'; 
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
@@ -51,6 +52,10 @@ class _AddLessonWithQuizScreenState extends State<AddLessonWithQuizScreen> {
 
   // Track option images for multiple choice with pictures
   final Map<int, Map<int, String?>> _optionImages = {};
+
+  // ADD these two alongside _uploadedFileUrl, _uploadedFilePath, etc.:
+Uint8List? _uploadedFileBytes;  // raw bytes for web-safe upload
+String?    _uploadedFileName;   // original filename (for extension)
 
   FocusNode _getQuestionFocusNode(int index) {
     if (!_questionFocusNodes.containsKey(index)) {
@@ -245,98 +250,101 @@ class _AddLessonWithQuizScreenState extends State<AddLessonWithQuizScreen> {
     setState(() {});
   }
 
-  Future<void> _pickFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'mp4', 'mp3', 'wav', 'jpg', 'jpeg', 'png'],
-    );
+Future<void> _pickFile() async {
+  FilePickerResult? result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['pdf', 'mp4', 'mp3', 'wav', 'jpg', 'jpeg', 'png'],
+    withData: true, // ← required for web: loads bytes immediately
+  );
 
-    if (result != null && result.files.single.path != null) {
-      final file = File(result.files.single.path!);
-      
-      // Front-end validation: Immediately check file size
-      final validation = await validateFileSize(file);
-      if (!validation.isValid) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(validation.getUserMessage()),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return; // Prevent upload button from triggering
-      }
+  if (result == null || result.files.single.bytes == null) return;
 
-      final fileExtension = file.path.split('.').last.toLowerCase();
+  final pickedFile = result.files.single;
+  final bytes = pickedFile.bytes!;
+  final fileName = pickedFile.name;
+  final fileExtension = fileName.split('.').last.toLowerCase();
 
-      final uploadedUrl = await ApiService.uploadFile(file);
-      if (uploadedUrl == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to upload file. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      setState(() {
-        _uploadedFileUrl = uploadedUrl;
-        _uploadedFilePath = _extractStoragePath(uploadedUrl);
-        _uploadedFileExtension = fileExtension;
-        if (['jpg', 'jpeg', 'png'].contains(fileExtension)) {
-          _uploadedFileType = 'image';
-        } else if (fileExtension == 'pdf') {
-          _uploadedFileType = 'pdf';
-        } else if (['mp4'].contains(fileExtension)) {
-          _uploadedFileType = 'video';
-        } else {
-          _uploadedFileType = 'audio';
-        }
-      });
+  // Validate size from bytes — works on web + mobile
+  final validation = FileValidator.validateBytes(bytes);
+  if (!validation.isValid) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(validation.getUserMessage()),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
+    return;
   }
 
-  Future<String?> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
+  final uploadedUrl = await ApiService.uploadFile(bytes, fileName);
+  if (uploadedUrl == null) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to upload file. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    return;
+  }
 
-    if (pickedFile != null) {
-      File file = File(pickedFile.path);
-      
-      // Front-end validation: Immediately check file size
-      final validation = await validateFileSize(file);
-      if (!validation.isValid) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(validation.getUserMessage()),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return null; // Prevent upload button from triggering
-      }
+  setState(() {
+    _uploadedFileUrl      = uploadedUrl;
+    _uploadedFileBytes    = bytes;
+    _uploadedFileName     = fileName;
+    _uploadedFilePath     = _extractStoragePath(uploadedUrl);
+    _uploadedFileExtension = fileExtension;
+    if (['jpg', 'jpeg', 'png'].contains(fileExtension)) {
+      _uploadedFileType = 'image';
+    } else if (fileExtension == 'pdf') {
+      _uploadedFileType = 'pdf';
+    } else if (fileExtension == 'mp4') {
+      _uploadedFileType = 'video';
+    } else {
+      _uploadedFileType = 'audio';
+    }
+  });
+}
 
-      String? uploadedUrl = await ApiService.uploadFile(file);
-      if (uploadedUrl == null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to upload image. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return uploadedUrl;
+Future<String?> _pickImage() async {
+  final picker = ImagePicker();
+  final pickedFile = await picker.pickImage(
+    source: ImageSource.gallery,
+    imageQuality: 80,
+  );
+  if (pickedFile == null) return null;
+
+  // readAsBytes() works on both web and mobile
+  final bytes = await pickedFile.readAsBytes();
+
+  // Validate size from bytes
+  final validation = FileValidator.validateBytes(bytes);
+  if (!validation.isValid) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(validation.getUserMessage()),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
     return null;
   }
+
+  final uploadedUrl = await ApiService.uploadFile(bytes, pickedFile.name);
+  if (uploadedUrl == null && mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Failed to upload image. Please try again.'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+  return uploadedUrl;
+}
 
   Widget _buildFilePreview() {
     final primaryColor = Theme.of(context).colorScheme.primary;
@@ -367,16 +375,21 @@ class _AddLessonWithQuizScreenState extends State<AddLessonWithQuizScreen> {
     Color iconColor = primaryColor;
 
     switch (_uploadedFileType) {
-      case 'image':
-        previewWidget = ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.network(
+case 'image':
+  previewWidget = ClipRRect(
+    borderRadius: BorderRadius.circular(8),
+    child: _uploadedFileBytes != null
+        ? Image.memory(         // ← instant local preview, web-safe
+            _uploadedFileBytes!,
+            height: 150,
+            fit: BoxFit.contain,
+          )
+        : Image.network(        // ← fallback if bytes somehow lost
             _uploadedFileUrl!,
             height: 150,
             fit: BoxFit.contain,
           ),
-        );
-        iconColor = Colors.green;
+  );
       case 'pdf':
         previewWidget = Container(
           padding: const EdgeInsets.all(12),

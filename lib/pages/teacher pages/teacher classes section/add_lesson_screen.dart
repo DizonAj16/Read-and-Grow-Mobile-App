@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../api/supabase_api_service.dart';
 import 'add_quiz_screen.dart';
-import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../../utils/file_validator.dart';
 
@@ -31,61 +32,67 @@ class _AddLessonScreenState extends State<AddLessonScreen> {
   String? _uploadedFileType;
   String? _uploadedFileExtension;
 
-  Future<void> _pickFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'mp4', 'mp3', 'wav', 'jpg', 'jpeg', 'png'],
-    );
+  Uint8List? _uploadedFileBytes;
+String?    _uploadedFileName;
 
-    if (result != null && result.files.single.path != null) {
-      File file = File(result.files.single.path!);
-      
-      // Front-end validation: Immediately check file size
-      final validation = await validateFileSize(file);
-      if (!validation.isValid) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(validation.getUserMessage()),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return; // Prevent upload button from triggering
-      }
+Future<void> _pickFile() async {
+  FilePickerResult? result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['pdf', 'mp4', 'mp3', 'wav', 'jpg', 'jpeg', 'png'],
+    withData: true, // ← required for web
+  );
 
-      String fileExtension = file.path.split('.').last.toLowerCase();
+  if (result == null || result.files.single.bytes == null) return;
 
-      String? uploadedUrl = await ApiService.uploadFile(file);
-      
-      if (uploadedUrl == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to upload file. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
+  final pickedFile  = result.files.single;
+  final bytes       = pickedFile.bytes!;
+  final fileName    = pickedFile.name;
+  final fileExtension = fileName.split('.').last.toLowerCase();
 
-      setState(() {
-        _uploadedFileUrl = uploadedUrl;
-        _uploadedFilePath = _extractStoragePath(uploadedUrl);
-        _uploadedFileExtension = fileExtension;
-        if (['jpg', 'jpeg', 'png'].contains(fileExtension)) {
-          _uploadedFileType = 'image';
-        } else if (fileExtension == 'pdf') {
-          _uploadedFileType = 'pdf';
-        } else if (['mp4'].contains(fileExtension)) {
-          _uploadedFileType = 'video';
-        } else {
-          _uploadedFileType = 'audio';
-        }
-      });
+  // Validate from bytes — web-safe
+  final validation = FileValidator.validateBytes(bytes);
+  if (!validation.isValid) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(validation.getUserMessage()),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
+    return;
   }
+
+  final uploadedUrl = await ApiService.uploadFile(bytes, fileName);
+  if (uploadedUrl == null) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to upload file. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    return;
+  }
+
+  setState(() {
+    _uploadedFileUrl       = uploadedUrl;
+    _uploadedFileBytes     = bytes;
+    _uploadedFileName      = fileName;
+    _uploadedFilePath      = _extractStoragePath(uploadedUrl);
+    _uploadedFileExtension = fileExtension;
+    if (['jpg', 'jpeg', 'png'].contains(fileExtension)) {
+      _uploadedFileType = 'image';
+    } else if (fileExtension == 'pdf') {
+      _uploadedFileType = 'pdf';
+    } else if (fileExtension == 'mp4') {
+      _uploadedFileType = 'video';
+    } else {
+      _uploadedFileType = 'audio';
+    }
+  });
+}
 
   Future<void> _submitLesson() async {
     if (_lessonTitleController.text.isEmpty) return;
@@ -179,8 +186,10 @@ class _AddLessonScreenState extends State<AddLessonScreen> {
     if (_uploadedFileUrl == null) return const SizedBox();
 
     switch (_uploadedFileType) {
-      case 'image':
-        return Image.network(_uploadedFileUrl!, height: 150);
+case 'image':
+  return _uploadedFileBytes != null
+      ? Image.memory(_uploadedFileBytes!, height: 150)
+      : Image.network(_uploadedFileUrl!, height: 150);
       case 'pdf':
         return Row(
           children: [

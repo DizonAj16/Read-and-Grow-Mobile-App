@@ -956,19 +956,17 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                       .map(
                         (classroom) => Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: TeacherDashboardClassCard(
-                            classId: classroom.id!,
-                            className: classroom.className,
-                            section:
-                                "${classroom.gradeLevel} - ${classroom.section}",
-                            studentCount: classroom.studentCount,
-                            teacherName: classroom.teacherName ?? "Unknown",
-                            onView:
-                                () => _viewClassDetails(context, classroom.id!),
-                            onEdit: () => _editClass(context, classroom),
-                            onDelete:
-                                () => _deleteClass(context, classroom.id!),
-                          ),
+child: TeacherDashboardClassCard(
+  classId: classroom.id!,
+  className: classroom.className,
+  section: "${classroom.gradeLevel} - ${classroom.section}",
+  studentCount: classroom.studentCount,
+  teacherName: classroom.teacherName ?? "Unknown",
+  backgroundImage: classroom.backgroundImage, // ← ADD this
+  onView: () => _viewClassDetails(context, classroom.id!),
+  onEdit: () => _editClass(context, classroom),
+  onDelete: () => _deleteClass(context, classroom.id!),
+),
                         ),
                       )
                       .toList(),

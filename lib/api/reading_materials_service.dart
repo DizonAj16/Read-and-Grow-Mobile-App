@@ -92,422 +92,430 @@ class ReadingMaterialsService {
   static final supabase = Supabase.instance.client;
 
   /// Upload a new reading material (Teacher only) - optionally assign to classroom
-  static Future<Map<String, dynamic>?> uploadReadingMaterial({
-    required File file,
-    required String title,
-    required String levelId,
-    String? description,
-    String? classroomId,
-    String? prerequisiteId,
-    File? audioFile,
-  }) async {
-    Uint8List? fileBytes;
-    Uint8List? audioFileBytes;
-    File? tempAudioFile;
-    String? audioTempPath;
+/// Upload a new reading material (Teacher only) - supports both web and mobile
+static Future<Map<String, dynamic>?> uploadReadingMaterial({
+  required File file,
+  required String title,
+  required String levelId,
+  String? description,
+  String? classroomId,
+  String? prerequisiteId,
+  File? audioFile,
+  Map<String, Uint8List>? webFileBytes, // NEW: For web file data
+}) async {
+  Uint8List? fileBytes;
+  Uint8List? audioFileBytes;
+  String? audioTempPath;
+
+  try {
+    debugPrint('=== START OF UPLOAD FUNCTION ===');
+    debugPrint(
+      '📚 [READING_MATERIAL] Starting upload - Title: $title, Level: $levelId, Classroom: $classroomId, Prerequisite: $prerequisiteId, Has Audio: ${audioFile != null}, Platform: ${kIsWeb ? "Web" : "Mobile"}',
+    );
+
+    // 1️⃣ Read main file bytes
+    debugPrint('📚 [READING_MATERIAL] Reading main file from: ${file.path}');
 
     try {
-      debugPrint('=== START OF UPLOAD FUNCTION ===');
-      debugPrint(
-        '📚 [READING_MATERIAL] Starting upload - Title: $title, Level: $levelId, Classroom: $classroomId, Prerequisite: $prerequisiteId, Has Audio: ${audioFile != null}',
-      );
-
-      // 1️⃣ Read main file bytes with retry logic
-      debugPrint('📚 [READING_MATERIAL] Reading main file from: ${file.path}');
-
-      try {
-        // Check if file exists
+      if (kIsWeb && webFileBytes != null && webFileBytes.containsKey(file.path)) {
+        // On web, retrieve from stored bytes
+        fileBytes = webFileBytes[file.path];
+        if (fileBytes == null) {
+          return {'error': 'Failed to retrieve file data'};
+        }
+        debugPrint('📚 [READING_MATERIAL] Main file bytes retrieved from web storage: ${fileBytes.length} bytes');
+      } else if (!kIsWeb) {
+        // Mobile/Desktop: Check if file exists
         final fileExists = await file.exists();
         debugPrint('📚 [READING_MATERIAL] Main file exists: $fileExists');
-
+        
         if (!fileExists) {
           return {
             'error': 'Main file not found. Please select the file again.',
           };
         }
-
+        
         fileBytes = await file.readAsBytes();
-        debugPrint(
-          '📚 [READING_MATERIAL] Main file bytes loaded: ${fileBytes.length}',
-        );
-      } catch (e) {
-        debugPrint('❌ [READING_MATERIAL] Error reading main file: $e');
-        return {
-          'error': 'Failed to read main file. Please select the file again.',
-        };
+        debugPrint('📚 [READING_MATERIAL] Main file bytes loaded: ${fileBytes.length} bytes');
+      } else {
+        return {'error': 'File data not available on web'};
       }
+      
+      if (fileBytes == null || fileBytes.isEmpty) {
+        return {'error': 'File is empty or could not be read'};
+      }
+    } catch (e) {
+      debugPrint('❌ [READING_MATERIAL] Error reading main file: $e');
+      return {
+        'error': 'Failed to read main file. Please select the file again.',
+      };
+    }
 
-      // 2️⃣ Read audio file bytes if provided
-      if (audioFile != null) {
-        debugPrint(
-          '📚 [READING_MATERIAL] Reading audio file from: ${audioFile.path}',
-        );
+    // 2️⃣ Read audio file bytes if provided
+    if (audioFile != null) {
+      debugPrint('📚 [READING_MATERIAL] Reading audio file from: ${audioFile.path}');
 
-        try {
+      try {
+        if (kIsWeb && webFileBytes != null && webFileBytes.containsKey(audioFile.path)) {
+          // On web, retrieve from stored bytes
+          audioFileBytes = webFileBytes[audioFile.path];
+          if (audioFileBytes != null) {
+            debugPrint('📚 [READING_MATERIAL] Audio bytes retrieved from web storage: ${audioFileBytes.length} bytes');
+          }
+        } else if (!kIsWeb) {
+          // Mobile/Desktop: Check if file exists
           final audioExists = await audioFile.exists();
           debugPrint('📚 [READING_MATERIAL] Audio file exists: $audioExists');
-
+          
           if (audioExists) {
             audioFileBytes = await audioFile.readAsBytes();
-            debugPrint(
-              '📚 [READING_MATERIAL] Audio bytes loaded: ${audioFileBytes.length}',
-            );
-
-            // Create a temporary copy of the audio file to ensure it stays available
+            if (audioFileBytes != null) {
+              debugPrint('📚 [READING_MATERIAL] Audio bytes loaded: ${audioFileBytes.length} bytes');
+            }
+          }
+        }
+        
+        if (audioFileBytes != null && audioFileBytes.isNotEmpty) {
+          // Only create temp file on mobile/desktop
+          if (!kIsWeb) {
             final tempDir = await getTemporaryDirectory();
             final timestamp = DateTime.now().millisecondsSinceEpoch;
             audioTempPath = '${tempDir.path}/audio_temp_${timestamp}.m4a';
-            tempAudioFile = File(audioTempPath);
-            await tempAudioFile!.writeAsBytes(audioFileBytes!);
-            debugPrint(
-              '📚 [READING_MATERIAL] Audio temp file created: $audioTempPath',
-            );
-          } else {
-            debugPrint(
-              '⚠️ [READING_MATERIAL] Audio file does not exist, continuing without audio',
-            );
+            final tempAudioFile = File(audioTempPath);
+            await tempAudioFile.writeAsBytes(audioFileBytes);
+            debugPrint('📚 [READING_MATERIAL] Audio temp file created: $audioTempPath');
           }
-        } catch (e) {
-          debugPrint('❌ [READING_MATERIAL] Error reading audio file: $e');
-          // Don't fail the entire upload if audio reading fails
+        } else {
+          debugPrint('⚠️ [READING_MATERIAL] Audio file is empty or invalid, continuing without audio');
         }
+      } catch (e) {
+        debugPrint('❌ [READING_MATERIAL] Error reading audio file: $e');
+        // Don't fail the upload if audio reading fails
       }
+    }
 
-      final user = supabase.auth.currentUser;
-      if (user == null) {
-        debugPrint('❌ [READING_MATERIAL] No authenticated user');
-        return {'error': 'User not authenticated'};
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      debugPrint('❌ [READING_MATERIAL] No authenticated user');
+      return {'error': 'User not authenticated'};
+    }
+
+    // 3️⃣ Validate inputs
+    debugPrint('📚 [READING_MATERIAL] Step 1: Validating inputs');
+    if (title.trim().isEmpty) {
+      return {'error': 'Material title is required'};
+    }
+
+    if (levelId.isEmpty || !Validators.isValidUUID(levelId)) {
+      return {'error': 'Invalid reading level ID'};
+    }
+
+    // 4️⃣ Verify reading level exists
+    debugPrint('📚 [READING_MATERIAL] Step 2: Verifying reading level');
+    final levelExists = await supabase
+        .from('reading_levels')
+        .select('id, level_number')
+        .eq('id', levelId)
+        .maybeSingle();
+
+    if (levelExists == null) {
+      debugPrint('❌ [READING_MATERIAL] Reading level not found: $levelId');
+      return {'error': 'Reading level not found'};
+    }
+    debugPrint('✅ [READING_MATERIAL] Reading level verified');
+
+    // 5️⃣ Validate prerequisite exists if provided
+    if (prerequisiteId != null && prerequisiteId.isNotEmpty) {
+      debugPrint('📚 [READING_MATERIAL] Step 3: Validating prerequisite');
+      final prerequisiteExists = await supabase
+          .from('reading_materials')
+          .select('id, title, level_id')
+          .eq('id', prerequisiteId)
+          .maybeSingle();
+
+      if (prerequisiteExists == null) {
+        debugPrint('❌ [READING_MATERIAL] Prerequisite material not found: $prerequisiteId');
+        return {'error': 'Prerequisite reading material not found'};
       }
+      debugPrint('✅ [READING_MATERIAL] Prerequisite verified');
+    }
 
-      // 3️⃣ Validate inputs
-      debugPrint('📚 [READING_MATERIAL] Step 1: Validating inputs');
-      if (title.trim().isEmpty) {
-        return {'error': 'Material title is required'};
+    // 6️⃣ Validate classroom exists if classroomId is provided
+    if (classroomId != null && classroomId.isNotEmpty) {
+      debugPrint('📚 [READING_MATERIAL] Step 4: Validating classroom');
+      final classroomExists = await supabase
+          .from('class_rooms')
+          .select('id, class_name')
+          .eq('id', classroomId)
+          .maybeSingle();
+
+      if (classroomExists == null) {
+        debugPrint('❌ [READING_MATERIAL] Classroom not found: $classroomId');
+        return {'error': 'Classroom not found'};
       }
+      debugPrint('✅ [READING_MATERIAL] Classroom verified');
+    }
 
-      if (levelId.isEmpty || !Validators.isValidUUID(levelId)) {
-        return {'error': 'Invalid reading level ID'};
+    // 7️⃣ Validate main file
+    debugPrint('📚 [READING_MATERIAL] Step 5: Validating main file');
+
+    // Get file extension from path or filename
+    String fileExtension;
+    if (kIsWeb) {
+      // On web, we need to get extension from the virtual path
+      final fileName = file.path.split('/').last;
+      fileExtension = fileName.split('.').last.toLowerCase();
+    } else {
+      final fileName = file.path.split('/').last;
+      fileExtension = fileName.split('.').last.toLowerCase();
+    }
+    
+    debugPrint('📚 [READING_MATERIAL] File extension: $fileExtension');
+    final allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
+
+    if (!allowedExtensions.contains(fileExtension)) {
+      debugPrint('❌ [READING_MATERIAL] Invalid file extension');
+      return {
+        'error': 'Only PDF and image files (JPG, JPEG, PNG, WEBP) are allowed for reading materials',
+      };
+    }
+
+    // Validate file size
+    debugPrint('📚 [READING_MATERIAL] Checking file size...');
+    final fileSize = fileBytes.length;
+    debugPrint('📚 [READING_MATERIAL] File size: $fileSize bytes');
+
+    if (fileSize == 0) {
+      debugPrint('❌ [READING_MATERIAL] File is empty');
+      return {'error': 'Selected file is empty'};
+    }
+
+    if (fileSize > 10 * 1024 * 1024) { // 10MB limit
+      debugPrint('❌ [READING_MATERIAL] File is too large: ${fileSize / (1024 * 1024)} MB');
+      return {'error': 'File size must be less than 10MB'};
+    }
+
+    // Determine file type and content type
+    String fileType = 'pdf';
+    String contentType = 'application/pdf';
+
+    if (['jpg', 'jpeg', 'png', 'webp'].contains(fileExtension)) {
+      fileType = 'image';
+      if (fileExtension == 'jpg' || fileExtension == 'jpeg') {
+        contentType = 'image/jpeg';
+      } else if (fileExtension == 'png') {
+        contentType = 'image/png';
+      } else if (fileExtension == 'webp') {
+        contentType = 'image/webp';
       }
+    }
+    debugPrint('📚 [READING_MATERIAL] File type: $fileType, Content type: $contentType');
 
-      // 4️⃣ Verify reading level exists
-      debugPrint('📚 [READING_MATERIAL] Step 2: Verifying reading level');
-      final levelExists =
-          await supabase
-              .from('reading_levels')
-              .select('id, level_number')
-              .eq('id', levelId)
-              .maybeSingle();
+    // 8️⃣ Validate audio file if provided
+    debugPrint('📚 [READING_MATERIAL] Step 6: Validating audio file');
+    String? audioUrl;
 
-      if (levelExists == null) {
-        debugPrint('❌ [READING_MATERIAL] Reading level not found: $levelId');
-        return {'error': 'Reading level not found'};
+    if (audioFileBytes != null && audioFileBytes.isNotEmpty) {
+      // Get audio extension
+      String audioExtension;
+      if (kIsWeb) {
+        final audioFileName = audioFile!.path.split('/').last;
+        audioExtension = audioFileName.split('.').last.toLowerCase();
+      } else {
+        final audioFileName = audioFile!.path.split('/').last;
+        audioExtension = audioFileName.split('.').last.toLowerCase();
       }
-      debugPrint('✅ [READING_MATERIAL] Reading level verified');
+      
+      debugPrint('📚 [READING_MATERIAL] Audio extension: $audioExtension');
+      final allowedAudioExtensions = ['m4a', 'mp3', 'wav', 'aac'];
 
-      // 5️⃣ Validate prerequisite exists if provided
-      if (prerequisiteId != null && prerequisiteId.isNotEmpty) {
-        debugPrint('📚 [READING_MATERIAL] Step 3: Validating prerequisite');
-        final prerequisiteExists =
-            await supabase
-                .from('reading_materials')
-                .select('id, title, level_id')
-                .eq('id', prerequisiteId)
-                .maybeSingle();
-
-        if (prerequisiteExists == null) {
-          debugPrint(
-            '❌ [READING_MATERIAL] Prerequisite material not found: $prerequisiteId',
-          );
-          return {'error': 'Prerequisite reading material not found'};
-        }
-        debugPrint('✅ [READING_MATERIAL] Prerequisite verified');
-      }
-
-      // 6️⃣ Validate classroom exists if classroomId is provided
-      if (classroomId != null && classroomId.isNotEmpty) {
-        debugPrint('📚 [READING_MATERIAL] Step 4: Validating classroom');
-        final classroomExists =
-            await supabase
-                .from('class_rooms')
-                .select('id, class_name')
-                .eq('id', classroomId)
-                .maybeSingle();
-
-        if (classroomExists == null) {
-          debugPrint('❌ [READING_MATERIAL] Classroom not found: $classroomId');
-          return {'error': 'Classroom not found'};
-        }
-        debugPrint('✅ [READING_MATERIAL] Classroom verified');
-      }
-
-      // 7️⃣ Validate main file using the bytes
-      debugPrint('📚 [READING_MATERIAL] Step 5: Validating main file');
-
-      final fileExtension = file.path.split('.').last.toLowerCase();
-      debugPrint('📚 [READING_MATERIAL] File extension: $fileExtension');
-      final allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png'];
-
-      if (!allowedExtensions.contains(fileExtension)) {
-        debugPrint('❌ [READING_MATERIAL] Invalid file extension');
+      if (!allowedAudioExtensions.contains(audioExtension)) {
         return {
-          'error':
-              'Only PDF and image files (JPG, JPEG, PNG) are allowed for reading materials',
+          'error': 'Only M4A, MP3, WAV, and AAC audio files are allowed',
         };
       }
 
-      // Validate file size
-      debugPrint('📚 [READING_MATERIAL] Checking file size...');
-      final fileSize = fileBytes.length;
-      debugPrint('📚 [READING_MATERIAL] File size: $fileSize bytes');
+      // Validate audio file size
+      final audioSize = audioFileBytes.length;
+      debugPrint('📚 [READING_MATERIAL] Audio file size: $audioSize bytes');
 
-      if (fileSize == 0) {
-        debugPrint('❌ [READING_MATERIAL] File is empty');
-        return {'error': 'Selected file is empty'};
+      if (audioSize == 0) {
+        debugPrint('⚠️ [READING_MATERIAL] Audio file is empty, skipping');
+      } else if (audioSize > 5 * 1024 * 1024) { // 5MB limit for audio
+        debugPrint('⚠️ [READING_MATERIAL] Audio file is too large: ${audioSize / (1024 * 1024)} MB, skipping');
+      } else {
+        debugPrint('✅ [READING_MATERIAL] Audio file type and size valid');
       }
+    }
 
-      if (fileSize > 10 * 1024 * 1024) {
-        // 10MB limit
-        debugPrint(
-          '❌ [READING_MATERIAL] File is too large: ${fileSize / (1024 * 1024)} MB',
-        );
-        return {'error': 'File size must be less than 10MB'};
-      }
+    // 9️⃣ Upload to Supabase Storage
+    debugPrint('📚 [READING_MATERIAL] Step 7: Uploading to storage');
+    final sanitizedTitle = title.trim().replaceAll(
+      RegExp(r'[^a-zA-Z0-9._-]'),
+      '_',
+    );
 
-      // Determine file type and content type
-      String fileType = 'pdf';
-      String contentType = 'application/pdf';
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final storagePath = classroomId != null
+        ? "reading_materials/class_$classroomId/$levelId/${timestamp}_$sanitizedTitle.$fileExtension"
+        : "reading_materials/$levelId/${timestamp}_$sanitizedTitle.$fileExtension";
 
-      if (['jpg', 'jpeg', 'png'].contains(fileExtension)) {
-        fileType = 'image';
-        if (fileExtension == 'jpg' || fileExtension == 'jpeg') {
-          contentType = 'image/jpeg';
-        } else if (fileExtension == 'png') {
-          contentType = 'image/png';
-        }
-      }
-      debugPrint(
-        '📚 [READING_MATERIAL] File type: $fileType, Content type: $contentType',
-      );
+    debugPrint('📚 [READING_MATERIAL] Storage path: $storagePath');
 
-      // 8️⃣ Validate audio file if provided
-      debugPrint('📚 [READING_MATERIAL] Step 6: Validating audio file');
-      String? audioUrl;
+    try {
+      debugPrint('📚 [READING_MATERIAL] Uploading main file to Supabase storage...');
 
-      if (audioFileBytes != null && audioFileBytes.isNotEmpty) {
-        final audioExtension = audioFile!.path.split('.').last.toLowerCase();
-        debugPrint('📚 [READING_MATERIAL] Audio extension: $audioExtension');
-        final allowedAudioExtensions = ['m4a', 'mp3', 'wav', 'aac'];
-
-        if (!allowedAudioExtensions.contains(audioExtension)) {
-          return {
-            'error': 'Only M4A, MP3, WAV, and AAC audio files are allowed',
-          };
-        }
-
-        // Validate audio file size
-        final audioSize = audioFileBytes.length;
-        debugPrint('📚 [READING_MATERIAL] Audio file size: $audioSize bytes');
-
-        if (audioSize == 0) {
-          debugPrint('⚠️ [READING_MATERIAL] Audio file is empty, skipping');
-        } else if (audioSize > 5 * 1024 * 1024) {
-          // 5MB limit for audio
-          debugPrint(
-            '⚠️ [READING_MATERIAL] Audio file is too large: ${audioSize / (1024 * 1024)} MB, skipping',
+      await supabase.storage
+          .from('materials')
+          .uploadBinary(
+            storagePath,
+            fileBytes,
+            fileOptions: FileOptions(upsert: true, contentType: contentType),
           );
-        } else {
-          debugPrint('✅ [READING_MATERIAL] Audio file type and size valid');
-        }
-      }
+      debugPrint('✅ [READING_MATERIAL] Main file uploaded to storage');
+    } catch (e, stackTrace) {
+      debugPrint('❌ [READING_MATERIAL] Error uploading main file: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return {'error': 'Failed to upload file to storage: ${e.toString()}'};
+    }
 
-      // 9️⃣ Upload to Supabase Storage using bytes
-      debugPrint('📚 [READING_MATERIAL] Step 7: Uploading to storage');
-      final sanitizedTitle = title.trim().replaceAll(
-        RegExp(r'[^a-zA-Z0-9._-]'),
-        '_',
-      );
+    // 🔟 Get public URL
+    debugPrint('📚 [READING_MATERIAL] Step 8: Getting public URL');
+    final publicUrl = supabase.storage
+        .from('materials')
+        .getPublicUrl(storagePath);
+    debugPrint('📚 [READING_MATERIAL] Public URL: $publicUrl');
 
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final storagePath =
-          classroomId != null
-              ? "reading_materials/class_$classroomId/$levelId/${timestamp}_$sanitizedTitle.$fileExtension"
-              : "reading_materials/$levelId/${timestamp}_$sanitizedTitle.$fileExtension";
-
-      debugPrint('📚 [READING_MATERIAL] Storage path: $storagePath');
-
+    // 1️⃣1️⃣ Upload audio file if provided
+    if (audioFileBytes != null &&
+        audioFileBytes.isNotEmpty &&
+        audioFileBytes.length > 0 &&
+        audioFileBytes.length <= 5 * 1024 * 1024) {
+      debugPrint('📚 [READING_MATERIAL] Step 9: Uploading audio file');
       try {
-        debugPrint(
-          '📚 [READING_MATERIAL] Uploading main file to Supabase storage...',
-        );
+        // Get audio extension for storage path
+        String audioExtension;
+        if (kIsWeb && audioFile != null) {
+          final audioFileName = audioFile.path.split('/').last;
+          audioExtension = audioFileName.split('.').last.toLowerCase();
+        } else if (audioFile != null) {
+          final audioFileName = audioFile.path.split('/').last;
+          audioExtension = audioFileName.split('.').last.toLowerCase();
+        } else {
+          audioExtension = 'm4a'; // Default extension
+        }
+        
+        final audioStoragePath = classroomId != null
+            ? "teacher_instructions/class_$classroomId/$levelId/${timestamp}_${sanitizedTitle}_instruction.$audioExtension"
+            : "teacher_instructions/$levelId/${timestamp}_${sanitizedTitle}_instruction.$audioExtension";
+
+        debugPrint('📚 [READING_MATERIAL] Audio storage path: $audioStoragePath');
 
         await supabase.storage
             .from('materials')
             .uploadBinary(
-              storagePath,
-              fileBytes!,
-              fileOptions: FileOptions(upsert: true, contentType: contentType),
+              audioStoragePath,
+              audioFileBytes,
+              fileOptions: FileOptions(
+                upsert: true,
+                contentType: 'audio/m4a',
+              ),
             );
-        debugPrint('✅ [READING_MATERIAL] Main file uploaded to storage');
-      } catch (e, stackTrace) {
-        debugPrint('❌ [READING_MATERIAL] Error uploading main file: $e');
-        debugPrint('Stack trace: $stackTrace');
-        return {'error': 'Failed to upload file to storage: ${e.toString()}'};
-      }
 
-      // 🔟 Get public URL
-      debugPrint('📚 [READING_MATERIAL] Step 8: Getting public URL');
-      final publicUrl = supabase.storage
-          .from('materials')
-          .getPublicUrl(storagePath);
-      debugPrint('📚 [READING_MATERIAL] Public URL: $publicUrl');
+        audioUrl = supabase.storage
+            .from('materials')
+            .getPublicUrl(audioStoragePath);
 
-      // 1️⃣1️⃣ Upload audio file if provided
-      if (audioFileBytes != null &&
-          audioFileBytes.isNotEmpty &&
-          audioFileBytes.length > 0 &&
-          audioFileBytes.length <= 5 * 1024 * 1024) {
-        debugPrint('📚 [READING_MATERIAL] Step 9: Uploading audio file');
-        try {
-          final audioExtension = audioFile!.path.split('.').last.toLowerCase();
-          final audioStoragePath =
-              classroomId != null
-                  ? "teacher_instructions/class_$classroomId/$levelId/${timestamp}_${sanitizedTitle}_instruction.$audioExtension"
-                  : "teacher_instructions/$levelId/${timestamp}_${sanitizedTitle}_instruction.$audioExtension";
-
-          debugPrint(
-            '📚 [READING_MATERIAL] Audio storage path: $audioStoragePath',
-          );
-
-          await supabase.storage
-              .from('materials')
-              .uploadBinary(
-                audioStoragePath,
-                audioFileBytes,
-                fileOptions: FileOptions(
-                  upsert: true,
-                  contentType: 'audio/m4a',
-                ),
-              );
-
-          // Get public URL for audio
-          audioUrl = supabase.storage
-              .from('materials')
-              .getPublicUrl(audioStoragePath);
-
-          debugPrint('✅ [READING_MATERIAL] Audio uploaded: $audioUrl');
-        } catch (e) {
-          debugPrint('❌ [READING_MATERIAL] Error uploading audio: $e');
-          // Don't fail the entire upload if audio fails
-        }
-      }
-
-      // 1️⃣2️⃣ Insert into reading_materials table
-      debugPrint('📚 [READING_MATERIAL] Step 10: Inserting into database');
-      final materialData = {
-        'level_id': levelId,
-        'title': title.trim(),
-        'file_url': publicUrl,
-        'uploaded_by': user.id,
-        'prerequisite_id': prerequisiteId,
-        if (audioUrl != null) 'audio_url': audioUrl,
-        if (description != null && description.trim().isNotEmpty)
-          'description': description.trim(),
-        if (classroomId != null) 'class_room_id': classroomId,
-      };
-
-      debugPrint('📚 [READING_MATERIAL] Material data: $materialData');
-
-      final insertResult = await DatabaseHelpers.safeInsert(
-        supabase: supabase,
-        table: 'reading_materials',
-        data: materialData,
-      );
-
-      debugPrint('📚 [READING_MATERIAL] Insert result: $insertResult');
-
-      if (insertResult == null || insertResult.containsKey('error')) {
-        debugPrint(
-          '❌ [READING_MATERIAL] Database insert failed: ${insertResult?['error']}',
-        );
-
-        // Cleanup uploaded files
-        try {
-          await supabase.storage.from('materials').remove([storagePath]);
-          if (audioUrl != null) {
-            final audioPath = audioUrl!.split('materials/').last;
-            await supabase.storage.from('materials').remove([audioPath]);
-          }
-        } catch (e) {
-          debugPrint('⚠️ [READING_MATERIAL] Failed to cleanup files: $e');
-        }
-
-        return insertResult ?? {'error': 'Failed to save material record'};
-      }
-
-      final materialId = insertResult['id'] as String?;
-      debugPrint(
-        '✅ [READING_MATERIAL] Material saved successfully - ID: $materialId',
-      );
-
-      // 1️⃣3️⃣ Link material to classroom if classroomId is provided
-      if (classroomId != null && classroomId.isNotEmpty && materialId != null) {
-        try {
-          await _linkMaterialToClassroom(
-            classroomId: classroomId,
-            materialId: materialId,
-            assignedBy: user.id,
-          );
-          debugPrint(
-            '✅ [READING_MATERIAL] Material linked to classroom: $classroomId',
-          );
-        } catch (linkError) {
-          debugPrint(
-            '⚠️ [READING_MATERIAL] Failed to link material to classroom: $linkError',
-          );
-        }
-      }
-
-      // 1️⃣4️⃣ Sync to task_materials for all tasks in this reading level
-      try {
-        await _syncMaterialToTasks(
-          materialId: materialId!,
-          title: title.trim(),
-          description: description,
-          filePath: storagePath,
-          fileType: fileType,
-          levelId: levelId,
-          classRoomId: classroomId,
-          prerequisiteId: prerequisiteId,
-          audioUrl: audioUrl,
-        );
-      } catch (syncError) {
-        debugPrint(
-          '⚠️ [READING_MATERIAL] Error syncing to tasks (non-critical): $syncError',
-        );
-      }
-
-      debugPrint('=== END OF UPLOAD FUNCTION - SUCCESS ===');
-      return insertResult;
-    } catch (e, stackTrace) {
-      debugPrint(
-        '❌ [READING_MATERIAL] Unhandled error in uploadReadingMaterial: $e',
-      );
-      debugPrint('Stack trace: $stackTrace');
-      return {'error': 'Unexpected error occurred: ${e.toString()}'};
-    } finally {
-      // Clean up temporary audio file
-      if (tempAudioFile != null && await tempAudioFile!.exists()) {
-        try {
-          await tempAudioFile!.delete();
-          debugPrint('🗑️ [READING_MATERIAL] Cleaned up temp audio file');
-        } catch (e) {
-          debugPrint(
-            '⚠️ [READING_MATERIAL] Error cleaning up temp audio file: $e',
-          );
-        }
+        debugPrint('✅ [READING_MATERIAL] Audio uploaded: $audioUrl');
+      } catch (e) {
+        debugPrint('❌ [READING_MATERIAL] Error uploading audio: $e');
+        // Don't fail the entire upload if audio fails
       }
     }
+
+    // 1️⃣2️⃣ Insert into reading_materials table
+    debugPrint('📚 [READING_MATERIAL] Step 10: Inserting into database');
+    final materialData = {
+      'level_id': levelId,
+      'title': title.trim(),
+      'file_url': publicUrl,
+      'uploaded_by': user.id,
+      'prerequisite_id': prerequisiteId,
+      if (audioUrl != null) 'audio_url': audioUrl,
+      if (description != null && description.trim().isNotEmpty)
+        'description': description.trim(),
+      if (classroomId != null) 'class_room_id': classroomId,
+    };
+
+    debugPrint('📚 [READING_MATERIAL] Material data: $materialData');
+
+    final insertResult = await DatabaseHelpers.safeInsert(
+      supabase: supabase,
+      table: 'reading_materials',
+      data: materialData,
+    );
+
+    debugPrint('📚 [READING_MATERIAL] Insert result: $insertResult');
+
+    if (insertResult == null || insertResult.containsKey('error')) {
+      debugPrint('❌ [READING_MATERIAL] Database insert failed: ${insertResult?['error']}');
+
+      // Cleanup uploaded files
+      try {
+        await supabase.storage.from('materials').remove([storagePath]);
+        if (audioUrl != null) {
+          final audioPath = audioUrl!.split('materials/').last;
+          await supabase.storage.from('materials').remove([audioPath]);
+        }
+      } catch (e) {
+        debugPrint('⚠️ [READING_MATERIAL] Failed to cleanup files: $e');
+      }
+
+      return insertResult ?? {'error': 'Failed to save material record'};
+    }
+
+    final materialId = insertResult['id'] as String?;
+    debugPrint('✅ [READING_MATERIAL] Material saved successfully - ID: $materialId');
+
+    // 1️⃣3️⃣ Link material to classroom if classroomId is provided
+    if (classroomId != null && classroomId.isNotEmpty && materialId != null) {
+      try {
+        await _linkMaterialToClassroom(
+          classroomId: classroomId,
+          materialId: materialId,
+          assignedBy: user.id,
+        );
+        debugPrint('✅ [READING_MATERIAL] Material linked to classroom: $classroomId');
+      } catch (linkError) {
+        debugPrint('⚠️ [READING_MATERIAL] Failed to link material to classroom: $linkError');
+      }
+    }
+
+    // 1️⃣4️⃣ Sync to task_materials
+    try {
+      await _syncMaterialToTasks(
+        materialId: materialId!,
+        title: title.trim(),
+        description: description,
+        filePath: storagePath,
+        fileType: fileType,
+        levelId: levelId,
+        classRoomId: classroomId,
+        prerequisiteId: prerequisiteId,
+        audioUrl: audioUrl,
+      );
+    } catch (syncError) {
+      debugPrint('⚠️ [READING_MATERIAL] Error syncing to tasks (non-critical): $syncError');
+    }
+
+    debugPrint('=== END OF UPLOAD FUNCTION - SUCCESS ===');
+    return insertResult;
+  } catch (e, stackTrace) {
+    debugPrint('❌ [READING_MATERIAL] Unhandled error in uploadReadingMaterial: $e');
+    debugPrint('Stack trace: $stackTrace');
+    return {'error': 'Unexpected error occurred: ${e.toString()}'};
   }
+}
 
   /// Link a reading material to a classroom
   static Future<bool> _linkMaterialToClassroom({
@@ -1814,4 +1822,19 @@ class ReadingMaterialsService {
       return false;
     }
   }
-}
+  
+  static Future<Uint8List?> _readFileBytes(File file) async {
+    try {
+      if (!kIsWeb) {
+        // Mobile/Desktop: Direct file read
+        return await file.readAsBytes();
+      } else {
+        // Web: Need to handle differently
+        // On web, the file is already in memory when picked
+        return await file.readAsBytes();
+      }
+    } catch (e) {
+      debugPrint('❌ [FILE_READ] Error reading file: $e');
+      return null;
+    }
+  }}

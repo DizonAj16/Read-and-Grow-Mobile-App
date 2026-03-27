@@ -1,4 +1,5 @@
-import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
@@ -17,7 +18,8 @@ class AddLessonWithEssayScreen extends StatefulWidget {
   });
 
   @override
-  State<AddLessonWithEssayScreen> createState() => _AddLessonWithEssayScreenState();
+  State<AddLessonWithEssayScreen> createState() =>
+      _AddLessonWithEssayScreenState();
 }
 
 class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
@@ -44,6 +46,9 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
   // Track focus nodes
   final Map<int, FocusNode> _questionFocusNodes = {};
 
+  Uint8List? _uploadedFileBytes;
+  String? _uploadedFileName;
+
   FocusNode _getQuestionFocusNode(int index) {
     if (!_questionFocusNodes.containsKey(index)) {
       _questionFocusNodes[index] = FocusNode();
@@ -64,35 +69,38 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
   void _deleteEssayQuestion(int index) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Essay Question'),
-        content: const Text('Are you sure you want to delete this essay question?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _questionFocusNodes.remove(index);
-              _essayQuestions.removeAt(index);
-              _questionValidationErrors.remove(index);
-              setState(() {});
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Essay question deleted'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            },
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.red),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Essay Question'),
+            content: const Text(
+              'Are you sure you want to delete this essay question?',
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _questionFocusNodes.remove(index);
+                  _essayQuestions.removeAt(index);
+                  _questionValidationErrors.remove(index);
+                  setState(() {});
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Essay question deleted'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                },
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -100,55 +108,59 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'mp4', 'mp3', 'wav', 'jpg', 'jpeg', 'png'],
+      withData: true, // ← required for web
     );
 
-    if (result != null && result.files.single.path != null) {
-      final file = File(result.files.single.path!);
-      
-      // Front-end validation
-      final validation = await validateFileSize(file);
-      if (!validation.isValid) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(validation.getUserMessage()),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
+    if (result == null || result.files.single.bytes == null) return;
 
-      final fileExtension = file.path.split('.').last.toLowerCase();
-      final uploadedUrl = await ApiService.uploadFile(file);
-      
-      if (uploadedUrl == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to upload file. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
+    final pickedFile = result.files.single;
+    final bytes = pickedFile.bytes!;
+    final fileName = pickedFile.name;
+    final fileExtension = fileName.split('.').last.toLowerCase();
 
-      setState(() {
-        _uploadedFileUrl = uploadedUrl;
-        _uploadedFilePath = _extractStoragePath(uploadedUrl);
-        _uploadedFileExtension = fileExtension;
-        if (['jpg', 'jpeg', 'png'].contains(fileExtension)) {
-          _uploadedFileType = 'image';
-        } else if (fileExtension == 'pdf') {
-          _uploadedFileType = 'pdf';
-        } else if (['mp4'].contains(fileExtension)) {
-          _uploadedFileType = 'video';
-        } else {
-          _uploadedFileType = 'audio';
-        }
-      });
+    // Validate from bytes — web-safe
+    final validation = FileValidator.validateBytes(bytes);
+    if (!validation.isValid) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(validation.getUserMessage()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
     }
+
+    final uploadedUrl = await ApiService.uploadFile(bytes, fileName);
+    if (uploadedUrl == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to upload file. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _uploadedFileUrl = uploadedUrl;
+      _uploadedFileBytes = bytes;
+      _uploadedFileName = fileName;
+      _uploadedFilePath = _extractStoragePath(uploadedUrl);
+      _uploadedFileExtension = fileExtension;
+      if (['jpg', 'jpeg', 'png'].contains(fileExtension)) {
+        _uploadedFileType = 'image';
+      } else if (fileExtension == 'pdf') {
+        _uploadedFileType = 'pdf';
+      } else if (fileExtension == 'mp4') {
+        _uploadedFileType = 'video';
+      } else {
+        _uploadedFileType = 'audio';
+      }
+    });
   }
 
   Future<String?> _pickImage() async {
@@ -157,35 +169,33 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
       source: ImageSource.gallery,
       imageQuality: 80,
     );
+    if (pickedFile == null) return null;
 
-    if (pickedFile != null) {
-      File file = File(pickedFile.path);
-      
-      final validation = await validateFileSize(file);
-      if (!validation.isValid) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(validation.getUserMessage()),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return null;
-      }
+    final bytes = await pickedFile.readAsBytes();
 
-      String? uploadedUrl = await ApiService.uploadFile(file);
-      if (uploadedUrl == null && mounted) {
+    final validation = FileValidator.validateBytes(bytes);
+    if (!validation.isValid) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to upload image. Please try again.'),
+          SnackBar(
+            content: Text(validation.getUserMessage()),
             backgroundColor: Colors.red,
           ),
         );
       }
-      return uploadedUrl;
+      return null;
     }
-    return null;
+
+    final uploadedUrl = await ApiService.uploadFile(bytes, pickedFile.name);
+    if (uploadedUrl == null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to upload image. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    return uploadedUrl;
   }
 
   Widget _buildFilePreview() {
@@ -216,11 +226,18 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
       case 'image':
         previewWidget = ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: Image.network(
-            _uploadedFileUrl!,
-            height: 150,
-            fit: BoxFit.contain,
-          ),
+          child:
+              _uploadedFileBytes != null
+                  ? Image.memory(
+                    _uploadedFileBytes!,
+                    height: 150,
+                    fit: BoxFit.contain,
+                  )
+                  : Image.network(
+                    _uploadedFileUrl!,
+                    height: 150,
+                    fit: BoxFit.contain,
+                  ),
         );
         iconColor = Colors.green;
       case 'pdf':
@@ -373,7 +390,8 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
 
     // Validate essay questions
     if (_essayQuestions.isEmpty) {
-      _validationErrors['questions'] = 'At least one essay question is required';
+      _validationErrors['questions'] =
+          'At least one essay question is required';
     } else {
       for (int i = 0; i < _essayQuestions.length; i++) {
         final question = _essayQuestions[i];
@@ -444,7 +462,8 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final readingLevelId = widget.readingLevelId ?? widget.classDetails['reading_level_id'];
+      final readingLevelId =
+          widget.readingLevelId ?? widget.classDetails['reading_level_id'];
 
       // 1️⃣ Add Lesson
       debugPrint('Adding lesson for essay...');
@@ -459,9 +478,9 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
 
       if (lesson == null) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to add lesson')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Failed to add lesson')));
         return;
       }
 
@@ -470,11 +489,12 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
       // 2️⃣ Determine teacherId
       String? teacherId = widget.classDetails['teacher_id'];
       if (teacherId == null) {
-        final teacherData = await Supabase.instance.client
-            .from('teachers')
-            .select('id')
-            .eq('id', Supabase.instance.client.auth.currentUser!.id)
-            .maybeSingle();
+        final teacherData =
+            await Supabase.instance.client
+                .from('teachers')
+                .select('id')
+                .eq('id', Supabase.instance.client.auth.currentUser!.id)
+                .maybeSingle();
         teacherId = teacherData?['id'];
         if (teacherId == null) {
           setState(() => _isLoading = false);
@@ -486,16 +506,17 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
       }
 
       // 3️⃣ Insert assignment row
-      final assignmentRes = await Supabase.instance.client
-          .from('assignments')
-          .insert({
-            'class_room_id': widget.classDetails['id'],
-            'task_id': lesson['id'],
-            'teacher_id': teacherId,
-            'assignment_type': 'essay', // Mark as essay assignment
-          })
-          .select()
-          .maybeSingle();
+      final assignmentRes =
+          await Supabase.instance.client
+              .from('assignments')
+              .insert({
+                'class_room_id': widget.classDetails['id'],
+                'task_id': lesson['id'],
+                'teacher_id': teacherId,
+                'assignment_type': 'essay', // Mark as essay assignment
+              })
+              .select()
+              .maybeSingle();
 
       if (assignmentRes == null) {
         setState(() => _isLoading = false);
@@ -542,13 +563,12 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
 
       // Navigate back
       Navigator.pop(context);
-      
     } catch (e) {
       setState(() => _isLoading = false);
       debugPrint('Error submitting lesson & essay: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -564,9 +584,10 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
     final storagePath = _uploadedFilePath;
     if (storagePath == null || storagePath.isEmpty) return;
 
-    final title = _lessonTitleController.text.trim().isEmpty
-        ? 'Lesson Material'
-        : _lessonTitleController.text.trim();
+    final title =
+        _lessonTitleController.text.trim().isEmpty
+            ? 'Lesson Material'
+            : _lessonTitleController.text.trim();
     final description = _lessonDescController.text.trim();
 
     final payload = {
@@ -599,9 +620,10 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null || userId.isEmpty) return;
 
-    final title = _lessonTitleController.text.trim().isEmpty
-        ? 'Lesson Material'
-        : _lessonTitleController.text.trim();
+    final title =
+        _lessonTitleController.text.trim().isEmpty
+            ? 'Lesson Material'
+            : _lessonTitleController.text.trim();
     final description = _lessonDescController.text.trim();
 
     final payload = {
@@ -668,9 +690,10 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: hasQuestionErrors
-            ? BorderSide(color: Colors.red.withOpacity(0.3), width: 2)
-            : BorderSide.none,
+        side:
+            hasQuestionErrors
+                ? BorderSide(color: Colors.red.withOpacity(0.3), width: 2)
+                : BorderSide.none,
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -680,7 +703,10 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: hasQuestionErrors ? Colors.red[100] : primaryLight,
                     borderRadius: BorderRadius.circular(12),
@@ -696,7 +722,10 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
                 const Spacer(),
                 if (hasQuestionErrors)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.red[50],
                       borderRadius: BorderRadius.circular(8),
@@ -741,7 +770,9 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
               decoration: InputDecoration(
                 labelText: 'Essay Question (Text or Image required)',
                 hintText: 'Enter the essay prompt or question...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 filled: true,
                 fillColor: Colors.grey[50],
                 errorText: _getQuestionError(index, 'questionText'),
@@ -765,7 +796,9 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
               decoration: InputDecoration(
                 labelText: 'Word Limit (optional)',
                 hintText: 'e.g., 250 (leave empty for unlimited)',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 filled: true,
                 fillColor: Colors.grey[50],
                 errorText: _getQuestionError(index, 'wordLimit'),
@@ -809,10 +842,7 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
                     '• You can add an image prompt (optional)\n'
                     '• Word limit is optional\n'
                     '• You will manually grade these responses later',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blue[800],
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.blue[800]),
                   ),
                 ],
               ),
@@ -829,7 +859,10 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
       children: [
         Text(
           'Question Image (Optional, but recommended):',
-          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey[700]),
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
         ),
         const SizedBox(height: 8),
         GestureDetector(
@@ -848,58 +881,59 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
               borderRadius: BorderRadius.circular(8),
               color: Colors.grey[50],
             ),
-            child: (q.questionImageUrl ?? '').isEmpty
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add_photo_alternate, color: Colors.grey),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Tap to add image prompt (optional)',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          'Students will see this image above the essay prompt',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey[600],
+            child:
+                (q.questionImageUrl ?? '').isEmpty
+                    ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_photo_alternate, color: Colors.grey),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Tap to add image prompt (optional)',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            'Students will see this image above the essay prompt',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey[600],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  )
-                : Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          q.questionImageUrl!,
-                          fit: BoxFit.contain,
-                          width: double.infinity,
-                          height: double.infinity,
-                        ),
-                      ),
-                      Positioned(
-                        top: 4,
-                        right: 4,
-                        child: CircleAvatar(
-                          radius: 16,
-                          backgroundColor: Colors.black54,
-                          child: IconButton(
-                            icon: const Icon(Icons.delete, size: 16),
-                            color: Colors.white,
-                            onPressed: () {
-                              setState(() {
-                                q.questionImageUrl = null;
-                              });
-                            },
+                      ],
+                    )
+                    : Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            q.questionImageUrl!,
+                            fit: BoxFit.contain,
+                            width: double.infinity,
+                            height: double.infinity,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Colors.black54,
+                            child: IconButton(
+                              icon: const Icon(Icons.delete, size: 16),
+                              color: Colors.white,
+                              onPressed: () {
+                                setState(() {
+                                  q.questionImageUrl = null;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
           ),
         ),
       ],
@@ -936,7 +970,9 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
             _buildSectionHeader('Lesson Details', Icons.menu_book),
             Card(
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -945,7 +981,9 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
                       controller: _lessonTitleController,
                       decoration: InputDecoration(
                         labelText: 'Lesson Title',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                         prefixIcon: const Icon(Icons.title),
                         filled: true,
                         fillColor: Colors.grey[50],
@@ -961,7 +999,9 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
                       minLines: 3,
                       decoration: InputDecoration(
                         labelText: 'Description',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                         prefixIcon: const Icon(Icons.description),
                         filled: true,
                         fillColor: Colors.grey[50],
@@ -1013,7 +1053,9 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
             _buildSectionHeader('Lesson Material *', Icons.attach_file),
             Card(
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -1021,7 +1063,9 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
                     ElevatedButton.icon(
                       onPressed: _pickFile,
                       icon: const Icon(Icons.cloud_upload),
-                      label: const Text('Upload File (Image, PDF, Video, Audio)'),
+                      label: const Text(
+                        'Upload File (Image, PDF, Video, Audio)',
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryLight,
                         foregroundColor: primaryColor,
@@ -1054,7 +1098,9 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
             _buildSectionHeader('Essay Assignment', Icons.assignment),
             Card(
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -1063,7 +1109,9 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
                       controller: _essayTitleController,
                       decoration: InputDecoration(
                         labelText: 'Essay Assignment Title',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                         prefixIcon: const Icon(Icons.assignment),
                         filled: true,
                         fillColor: Colors.grey[50],
@@ -1080,9 +1128,10 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
                           color: Colors.grey[50],
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: _getFieldError('questions') != null
-                                ? Colors.red!
-                                : Colors.grey[300]!,
+                            color:
+                                _getFieldError('questions') != null
+                                    ? Colors.red!
+                                    : Colors.grey[300]!,
                           ),
                         ),
                         child: Column(
@@ -1090,25 +1139,28 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
                             Icon(
                               Icons.assignment_outlined,
                               size: 48,
-                              color: _getFieldError('questions') != null
-                                  ? Colors.red
-                                  : Colors.grey,
+                              color:
+                                  _getFieldError('questions') != null
+                                      ? Colors.red
+                                      : Colors.grey,
                             ),
                             const SizedBox(height: 8),
                             Text(
                               'No essay questions added yet',
                               style: TextStyle(
-                                color: _getFieldError('questions') != null
-                                    ? Colors.red
-                                    : Colors.grey,
+                                color:
+                                    _getFieldError('questions') != null
+                                        ? Colors.red
+                                        : Colors.grey,
                               ),
                             ),
                             Text(
                               'Use the + button below to add essay questions',
                               style: TextStyle(
-                                color: _getFieldError('questions') != null
-                                    ? Colors.red
-                                    : Colors.grey,
+                                color:
+                                    _getFieldError('questions') != null
+                                        ? Colors.red
+                                        : Colors.grey,
                                 fontSize: 12,
                               ),
                             ),
@@ -1128,7 +1180,10 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
                       )
                     else
                       ...List.generate(_essayQuestions.length, (index) {
-                        return _buildEssayQuestionCard(_essayQuestions[index], index);
+                        return _buildEssayQuestionCard(
+                          _essayQuestions[index],
+                          index,
+                        );
                       }),
                   ],
                 ),
@@ -1149,33 +1204,36 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: _isLoading
-                    ? const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                child:
+                    _isLoading
+                        ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
                             ),
-                          ),
-                          SizedBox(width: 12),
-                          Text('Saving Lesson & Essay...'),
-                        ],
-                      )
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.save),
-                          SizedBox(width: 8),
-                          Text(
-                            'Save Lesson & Essay',
-                            style: TextStyle(fontSize: 16),
-                          ),
-                        ],
-                      ),
+                            SizedBox(width: 12),
+                            Text('Saving Lesson & Essay...'),
+                          ],
+                        )
+                        : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.save),
+                            SizedBox(width: 8),
+                            Text(
+                              'Save Lesson & Essay',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                          ],
+                        ),
               ),
             ),
             const SizedBox(height: 20),

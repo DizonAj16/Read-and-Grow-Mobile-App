@@ -17,48 +17,51 @@ class ApiService {
     'https://zrcynmiiduwrtlcyzvzi.supabase.co',
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyY3lubWlpZHV3cnRsY3l6dnppIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzI0MTEzMiwiZXhwIjoyMDcyODE3MTMyfQ.2Bm8PCz6NS4uH4dRRSbcY9Ad7VLmCY7BitWSZjAjaB8',
   );
-  static Future<String?> uploadFile(File file) async {
-    try {
-      // Backend validation: Check file size
-      final sizeValidation = await validateFileSize(file);
-      if (!sizeValidation.isValid) {
-        debugPrint(
-          '❌ [UPLOAD_FILE] File size validation failed: ${sizeValidation.getDetailedInfo()}',
-        );
-        throw FileSizeLimitException(
-          FileValidator.backendLimitMessage(FileValidator.defaultMaxSizeMB),
-          actualSizeMB: sizeValidation.actualSizeMB,
-          limitMB: sizeValidation.limitMB,
-        );
-      }
+// REPLACE the entire uploadFile method:
+static Future<String?> uploadFile(
+  Uint8List fileBytes,
+  String fileName,
+) async {
+  try {
+    // Validate size from bytes
+    final validation = FileValidator.validateBytes(fileBytes);
+    if (!validation.isValid) {
+      throw FileSizeLimitException(
+        FileValidator.backendLimitMessage(FileValidator.defaultMaxSizeMB),
+        actualSizeMB: validation.actualSizeMB,
+        limitMB: validation.limitMB,
+      );
+    }
 
-      String fileName =
-          'file_${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
-      // Using 'materials' bucket as per user's Supabase storage setup
-      try {
-        final response = await supabase.storage
-            .from('materials')
-            .upload(fileName, file);
-        if (response.isEmpty) {
-          print('❌ Failed to upload file: $fileName');
-          return null;
-        }
-      } catch (e) {
-        print('❌ Error uploading file: $e');
+    final storageFileName =
+        'file_${DateTime.now().millisecondsSinceEpoch}_$fileName';
+
+    try {
+      final response = await supabase.storage
+          .from('materials')
+          .uploadBinary(storageFileName, fileBytes);
+
+      if (response.isEmpty) {
+        print('❌ Failed to upload file: $storageFileName');
         return null;
       }
-
-      final fileUrl = supabase.storage.from('materials').getPublicUrl(fileName);
-      print('✅ Uploaded: $fileUrl');
-      return fileUrl;
     } catch (e) {
-      if (e is FileSizeLimitException) {
-        rethrow;
-      }
-      print('⚠️ Error uploading file: $e');
+      print('❌ Error uploading file: $e');
       return null;
     }
+
+    final fileUrl = supabase.storage
+        .from('materials')
+        .getPublicUrl(storageFileName);
+
+    print('✅ Uploaded: $fileUrl');
+    return fileUrl;
+  } catch (e) {
+    if (e is FileSizeLimitException) rethrow;
+    print('⚠️ Error uploading file: $e');
+    return null;
   }
+}
 
   /// Converts Dart enum to snake_case for Supabase enum
   static String questionTypeToSnakeCase(QuestionType type) {

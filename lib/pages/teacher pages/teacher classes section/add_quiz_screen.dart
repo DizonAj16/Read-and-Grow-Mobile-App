@@ -1,4 +1,5 @@
-import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../api/supabase_api_service.dart';
@@ -47,100 +48,104 @@ class _AddQuizScreenState extends State<AddQuizScreen> {
     }
   }
 
-Future<void> _loadQuizData() async {
-  if (widget.initialQuizData == null) return;
+  Future<void> _loadQuizData() async {
+    if (widget.initialQuizData == null) return;
 
-  setState(() => _isLoadingData = true);
+    setState(() => _isLoadingData = true);
 
-  try {
-    final quiz = widget.initialQuizData!['quiz'] as Map<String, dynamic>?;
-    final questions = widget.initialQuizData!['questions'];
+    try {
+      final quiz = widget.initialQuizData!['quiz'] as Map<String, dynamic>?;
+      final questions = widget.initialQuizData!['questions'];
 
-    if (quiz != null) {
-      _quizTitleController.text = quiz['title']?.toString() ?? '';
-    }
+      if (quiz != null) {
+        _quizTitleController.text = quiz['title']?.toString() ?? '';
+      }
 
-    if (questions != null && questions is List) {
-      // Check if questions are already QuizQuestion objects or raw data
-      if (questions.isNotEmpty && questions.first is QuizQuestion) {
-        // Already QuizQuestion objects - just use them directly
-        _questions = List<QuizQuestion>.from(questions);
-        
-        // Load option images for multiple choice with images
-        for (int i = 0; i < _questions.length; i++) {
-          final q = _questions[i];
-          
-          // Load option images
-          if (q.type == QuestionType.multipleChoiceWithImages && 
-              q.optionImages != null) {
-            final optionImagesMap = q.optionImages!;
-            _optionImages[i] = {};
-            
-            for (var entry in optionImagesMap.entries) {
-              final optIndex = int.tryParse(entry.key);
-              if (optIndex != null && optIndex < (q.options?.length ?? 0)) {
-                _optionImages[i]![optIndex] = entry.value;
-              }
-            }
-          }
-          
-          // Load question image
-          if ((q.type == QuestionType.fillInTheBlankWithImage || 
-               q.type == QuestionType.multipleChoiceWithImages) && 
-              q.questionImageUrl != null) {
-            _questionImages[i] = q.questionImageUrl;
-          }
-        }
-      } else {
-        // Raw data - need to convert using QuizQuestion.fromMap
-        _questions = questions.map<QuizQuestion>((q) {
-          final question = QuizQuestion.fromMap(q is Map<String, dynamic> ? q : {});
-          
+      if (questions != null && questions is List) {
+        // Check if questions are already QuizQuestion objects or raw data
+        if (questions.isNotEmpty && questions.first is QuizQuestion) {
+          // Already QuizQuestion objects - just use them directly
+          _questions = List<QuizQuestion>.from(questions);
+
           // Load option images for multiple choice with images
-          if (question.type == QuestionType.multipleChoiceWithImages && 
-              question.optionImages != null) {
-            final optionImagesMap = question.optionImages!;
-            final questionIndex = questions.indexOf(q);
-            _optionImages[questionIndex] = {};
-            
-            for (var entry in optionImagesMap.entries) {
-              final optIndex = int.tryParse(entry.key);
-              if (optIndex != null) {
-                _optionImages[questionIndex]![optIndex] = entry.value;
+          for (int i = 0; i < _questions.length; i++) {
+            final q = _questions[i];
+
+            // Load option images
+            if (q.type == QuestionType.multipleChoiceWithImages &&
+                q.optionImages != null) {
+              final optionImagesMap = q.optionImages!;
+              _optionImages[i] = {};
+
+              for (var entry in optionImagesMap.entries) {
+                final optIndex = int.tryParse(entry.key);
+                if (optIndex != null && optIndex < (q.options?.length ?? 0)) {
+                  _optionImages[i]![optIndex] = entry.value;
+                }
               }
             }
+
+            // Load question image
+            if ((q.type == QuestionType.fillInTheBlankWithImage ||
+                    q.type == QuestionType.multipleChoiceWithImages) &&
+                q.questionImageUrl != null) {
+              _questionImages[i] = q.questionImageUrl;
+            }
           }
-          
-          // Load question image
-          if ((question.type == QuestionType.fillInTheBlankWithImage || 
-               question.type == QuestionType.multipleChoiceWithImages) && 
-              question.questionImageUrl != null) {
-            final questionIndex = questions.indexOf(q);
-            _questionImages[questionIndex] = question.questionImageUrl;
-          }
-          
-          return question;
-        }).toList();
+        } else {
+          // Raw data - need to convert using QuizQuestion.fromMap
+          _questions =
+              questions.map<QuizQuestion>((q) {
+                final question = QuizQuestion.fromMap(
+                  q is Map<String, dynamic> ? q : {},
+                );
+
+                // Load option images for multiple choice with images
+                if (question.type == QuestionType.multipleChoiceWithImages &&
+                    question.optionImages != null) {
+                  final optionImagesMap = question.optionImages!;
+                  final questionIndex = questions.indexOf(q);
+                  _optionImages[questionIndex] = {};
+
+                  for (var entry in optionImagesMap.entries) {
+                    final optIndex = int.tryParse(entry.key);
+                    if (optIndex != null) {
+                      _optionImages[questionIndex]![optIndex] = entry.value;
+                    }
+                  }
+                }
+
+                // Load question image
+                if ((question.type == QuestionType.fillInTheBlankWithImage ||
+                        question.type ==
+                            QuestionType.multipleChoiceWithImages) &&
+                    question.questionImageUrl != null) {
+                  final questionIndex = questions.indexOf(q);
+                  _questionImages[questionIndex] = question.questionImageUrl;
+                }
+
+                return question;
+              }).toList();
+        }
+      }
+
+      debugPrint("✅ Total questions loaded: ${_questions.length}");
+    } catch (e) {
+      debugPrint('❌ Error loading quiz data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading quiz: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingData = false);
       }
     }
-    
-    debugPrint("✅ Total questions loaded: ${_questions.length}");
-  } catch (e) {
-    debugPrint('❌ Error loading quiz data: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error loading quiz: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  } finally {
-    if (mounted) {
-      setState(() => _isLoadingData = false);
-    }
   }
-}
 
   void _addQuestion() {
     final defaultOptions = List.generate(4, (i) => 'Option ${i + 1}');
@@ -155,43 +160,49 @@ Future<void> _loadQuizData() async {
     setState(() {});
   }
 
-void _deleteQuestion(int index) {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Delete Question'),
-      content: const Text('Are you sure you want to delete this question?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-            _questions.removeAt(index);
-            // Remove associated images
-            _optionImages.remove(index);
-            _questionImages.remove(index);
-            setState(() {});
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Question deleted'),
-                backgroundColor: Colors.red,
+  void _deleteQuestion(int index) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Question'),
+            content: const Text(
+              'Are you sure you want to delete this question?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
               ),
-            );
-          },
-          child: const Text('Delete', style: TextStyle(color: Colors.red)),
-        ),
-      ],
-    ),
-  );
-}
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _questions.removeAt(index);
+                  // Remove associated images
+                  _optionImages.remove(index);
+                  _questionImages.remove(index);
+                  setState(() {});
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Question deleted'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                },
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+    );
+  }
 
   void _addOption(QuizQuestion question, int questionIndex) {
     final newIndex = (question.options?.length ?? 0) + 1;
     question.options?.add('Option $newIndex');
-    
+
     // Initialize option image for multiple choice with images
     if (question.type == QuestionType.multipleChoiceWithImages) {
       if (!_optionImages.containsKey(questionIndex)) {
@@ -199,51 +210,68 @@ void _deleteQuestion(int index) {
       }
       _optionImages[questionIndex]![question.options!.length - 1] = null;
     }
-    
+
     setState(() {});
   }
 
-  void _deleteOption(QuizQuestion question, int questionIndex, int optionIndex) {
+  void _deleteOption(
+    QuizQuestion question,
+    int questionIndex,
+    int optionIndex,
+  ) {
     if (question.options != null && question.options!.length > 2) {
       // Don't allow deletion if it would leave less than 2 options
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Delete Option'),
-          content: const Text('Are you sure you want to delete this option?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                question.options?.removeAt(optionIndex);
-                
-                // Remove option image
-                if (_optionImages.containsKey(questionIndex)) {
-                  _optionImages[questionIndex]!.remove(optionIndex);
-                  // Shift other images up
-                  for (int i = optionIndex + 1; i < _optionImages[questionIndex]!.length + 1; i++) {
-                    final image = _optionImages[questionIndex]![i];
-                    if (image != null) {
-                      _optionImages[questionIndex]![i - 1] = image;
+        builder:
+            (context) => AlertDialog(
+              title: const Text('Delete Option'),
+              content: const Text(
+                'Are you sure you want to delete this option?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    question.options?.removeAt(optionIndex);
+
+                    // Remove option image
+                    if (_optionImages.containsKey(questionIndex)) {
+                      _optionImages[questionIndex]!.remove(optionIndex);
+                      // Shift other images up
+                      for (
+                        int i = optionIndex + 1;
+                        i < _optionImages[questionIndex]!.length + 1;
+                        i++
+                      ) {
+                        final image = _optionImages[questionIndex]![i];
+                        if (image != null) {
+                          _optionImages[questionIndex]![i - 1] = image;
+                        }
+                      }
+                      _optionImages[questionIndex]!.remove(
+                        _optionImages[questionIndex]!.length,
+                      );
                     }
-                  }
-                  _optionImages[questionIndex]!.remove(_optionImages[questionIndex]!.length);
-                }
-                
-                // If the deleted option was the correct answer, clear it
-                if (question.correctAnswer == question.options?[optionIndex]) {
-                  question.correctAnswer = null;
-                }
-                setState(() {});
-              },
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+
+                    // If the deleted option was the correct answer, clear it
+                    if (question.correctAnswer ==
+                        question.options?[optionIndex]) {
+                      question.correctAnswer = null;
+                    }
+                    setState(() {});
+                  },
+                  child: const Text(
+                    'Delete',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -274,36 +302,34 @@ void _deleteQuestion(int index) {
       source: ImageSource.gallery,
       imageQuality: 80,
     );
-    
-    if (pickedFile != null) {
-      File file = File(pickedFile.path);
-      
-      // Front-end validation: Immediately check file size
-      final validation = await validateFileSize(file);
-      if (!validation.isValid) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(validation.getUserMessage()),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return null; // Prevent upload button from triggering
-      }
+    if (pickedFile == null) return null;
 
-      String? uploadedUrl = await ApiService.uploadFile(file);
-      if (uploadedUrl == null && mounted) {
+    // readAsBytes() works on both web and mobile
+    final bytes = await pickedFile.readAsBytes();
+
+    final validation = FileValidator.validateBytes(bytes);
+    if (!validation.isValid) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to upload image. Please try again.'),
+          SnackBar(
+            content: Text(validation.getUserMessage()),
             backgroundColor: Colors.red,
           ),
         );
       }
-      return uploadedUrl;
+      return null;
     }
-    return null;
+
+    final uploadedUrl = await ApiService.uploadFile(bytes, pickedFile.name);
+    if (uploadedUrl == null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to upload image. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    return uploadedUrl;
   }
 
   String? _getOptionImage(int questionIndex, int optionIndex) {
@@ -349,40 +375,43 @@ void _deleteQuestion(int index) {
       return;
     }
 
-// Validate all questions have text
-for (int i = 0; i < _questions.length; i++) {
-  final q = _questions[i];
-  if (q.questionText.trim().isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Question ${i + 1} cannot be empty'),
-        backgroundColor: Colors.red,
-      ),
-    );
-    return;
-  }
-
-  // Validate multiple choice with images
-  if (q.type == QuestionType.multipleChoiceWithImages && q.options != null) {
-    for (int j = 0; j < q.options!.length; j++) {
-      final hasText = q.options![j].trim().isNotEmpty;
-      final hasImage = _getOptionImage(i, j) != null;
-      if (!hasText && !hasImage) {
+    // Validate all questions have text
+    for (int i = 0; i < _questions.length; i++) {
+      final q = _questions[i];
+      if (q.questionText.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Question ${i + 1}, Option ${j + 1} needs either text or image'),
+            content: Text('Question ${i + 1} cannot be empty'),
             backgroundColor: Colors.red,
           ),
         );
         return;
       }
-    }
-  }
+
+      // Validate multiple choice with images
+      if (q.type == QuestionType.multipleChoiceWithImages &&
+          q.options != null) {
+        for (int j = 0; j < q.options!.length; j++) {
+          final hasText = q.options![j].trim().isNotEmpty;
+          final hasImage = _getOptionImage(i, j) != null;
+          if (!hasText && !hasImage) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Question ${i + 1}, Option ${j + 1} needs either text or image',
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+            return;
+          }
+        }
+      }
 
       // Validate correct answer selection
-      if ((q.type == QuestionType.multipleChoice || 
-           q.type == QuestionType.multipleChoiceWithImages ||
-           q.type == QuestionType.trueFalse) &&
+      if ((q.type == QuestionType.multipleChoice ||
+              q.type == QuestionType.multipleChoiceWithImages ||
+              q.type == QuestionType.trueFalse) &&
           (q.correctAnswer == null || q.correctAnswer!.isEmpty)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -394,8 +423,8 @@ for (int i = 0; i < _questions.length; i++) {
       }
 
       // Validate fill in the blank answers
-      if ((q.type == QuestionType.fillInTheBlank || 
-           q.type == QuestionType.fillInTheBlankWithImage) &&
+      if ((q.type == QuestionType.fillInTheBlank ||
+              q.type == QuestionType.fillInTheBlankWithImage) &&
           (q.correctAnswer == null || q.correctAnswer!.trim().isEmpty)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -408,9 +437,9 @@ for (int i = 0; i < _questions.length; i++) {
     }
 
     if (!_isEditMode && _selectedLessonId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a lesson')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please select a lesson')));
       return;
     }
 
@@ -418,7 +447,9 @@ for (int i = 0; i < _questions.length; i++) {
     if (!_isEditMode && (classRoomId == null || classRoomId.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Missing class information. Please reopen this screen.'),
+          content: Text(
+            'Missing class information. Please reopen this screen.',
+          ),
         ),
       );
       return;
@@ -429,28 +460,28 @@ for (int i = 0; i < _questions.length; i++) {
     }
 
     try {
-bool success;
-if (_isEditMode) {
-  // Update existing quiz
-  success = await ApiService.updateQuiz(
-    quizId: widget.quizId!,
-    title: _quizTitleController.text,
-    questions: _questions,
-    optionImages: _optionImages,
-    questionImages: _questionImages, // Add this line
-  );
-} else {
-  // Create new quiz
-  final quiz = await ApiService.addQuiz(
-    taskId: _selectedLessonId!,
-    title: _quizTitleController.text,
-    questions: _questions,
-    classRoomId: classRoomId!,
-    optionImages: _optionImages,
-    questionImages: _questionImages, // Add this line
-  );
-  success = quiz != null;
-}
+      bool success;
+      if (_isEditMode) {
+        // Update existing quiz
+        success = await ApiService.updateQuiz(
+          quizId: widget.quizId!,
+          title: _quizTitleController.text,
+          questions: _questions,
+          optionImages: _optionImages,
+          questionImages: _questionImages, // Add this line
+        );
+      } else {
+        // Create new quiz
+        final quiz = await ApiService.addQuiz(
+          taskId: _selectedLessonId!,
+          title: _quizTitleController.text,
+          questions: _questions,
+          classRoomId: classRoomId!,
+          optionImages: _optionImages,
+          questionImages: _questionImages, // Add this line
+        );
+        success = quiz != null;
+      }
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -497,62 +528,64 @@ if (_isEditMode) {
     }
   }
 
-Widget _buildQuestionCard(QuizQuestion q, int index) {
-  final theme = Theme.of(context);
-  final colorScheme = theme.colorScheme;
+  Widget _buildQuestionCard(QuizQuestion q, int index) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
-  return Card(
-    margin: const EdgeInsets.symmetric(vertical: 8),
-    elevation: 3,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-      side: BorderSide(color: colorScheme.outline.withOpacity(0.2)),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Question ${index + 1}',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.primary,
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colorScheme.outline.withOpacity(0.2)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Question ${index + 1}',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.primary,
+                  ),
                 ),
-              ),
-              if (_isEditMode)
-                IconButton(
-                  icon: Icon(Icons.delete, color: colorScheme.error),
-                  onPressed: () => _deleteQuestion(index),
-                  tooltip: 'Delete question',
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          
-          // Question image upload (for fill in the blank with image AND multiple choice with images)
-          if (q.type == QuestionType.fillInTheBlankWithImage || 
-              q.type == QuestionType.multipleChoiceWithImages) ...[
-            _buildQuestionImageUpload(q, index),
-            const SizedBox(height: 12),
-          ],
-          
-          TextField(
-            controller: q.textController ?? TextEditingController(text: q.questionText),
-            decoration: InputDecoration(
-              labelText: 'Question Text',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              filled: true,
-              fillColor: colorScheme.surfaceVariant.withOpacity(0.3),
+                if (_isEditMode)
+                  IconButton(
+                    icon: Icon(Icons.delete, color: colorScheme.error),
+                    onPressed: () => _deleteQuestion(index),
+                    tooltip: 'Delete question',
+                  ),
+              ],
             ),
-            maxLines: 3,
-            onChanged: (val) => q.questionText = val,
-          ),
+            const SizedBox(height: 12),
+
+            // Question image upload (for fill in the blank with image AND multiple choice with images)
+            if (q.type == QuestionType.fillInTheBlankWithImage ||
+                q.type == QuestionType.multipleChoiceWithImages) ...[
+              _buildQuestionImageUpload(q, index),
+              const SizedBox(height: 12),
+            ],
+
+            TextField(
+              controller:
+                  q.textController ??
+                  TextEditingController(text: q.questionText),
+              decoration: InputDecoration(
+                labelText: 'Question Text',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                filled: true,
+                fillColor: colorScheme.surfaceVariant.withOpacity(0.3),
+              ),
+              maxLines: 3,
+              onChanged: (val) => q.questionText = val,
+            ),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -566,23 +599,29 @@ Widget _buildQuestionCard(QuizQuestion q, int index) {
                 isExpanded: true,
                 underline: const SizedBox(),
                 borderRadius: BorderRadius.circular(8),
-                items: QuestionType.values.where((type) => 
-                  type != QuestionType.audio // Exclude audio type for now
-                ).map((e) {
-                  return DropdownMenuItem(
-                    value: e,
-                    child: Row(
-                      children: [
-                        Icon(_getQuestionTypeIcon(e), size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          _getQuestionTypeName(e),
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
+                items:
+                    QuestionType.values
+                        .where(
+                          (type) =>
+                              type !=
+                              QuestionType.audio, // Exclude audio type for now
+                        )
+                        .map((e) {
+                          return DropdownMenuItem(
+                            value: e,
+                            child: Row(
+                              children: [
+                                Icon(_getQuestionTypeIcon(e), size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _getQuestionTypeName(e),
+                                  style: theme.textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                          );
+                        })
+                        .toList(),
                 onChanged: (val) {
                   if (val != null) {
                     setState(() {
@@ -604,128 +643,132 @@ Widget _buildQuestionCard(QuizQuestion q, int index) {
     );
   }
 
-Widget _buildQuestionImageUpload(QuizQuestion q, int questionIndex) {
-  final theme = Theme.of(context);
-  final colorScheme = theme.colorScheme;
-  
-  String label = 'Question Image (Optional):';
-  String description = '';
-  
-  if (q.type == QuestionType.fillInTheBlankWithImage) {
-    description = 'Students will see this image and type their answer.';
-  } else if (q.type == QuestionType.multipleChoiceWithImages) {
-    description = 'This image will be displayed above the multiple choice options.';
-  }
-  
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        label,
-        style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey),
-      ),
-      if (description.isNotEmpty) ...[
-        const SizedBox(height: 4),
+  Widget _buildQuestionImageUpload(QuizQuestion q, int questionIndex) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    String label = 'Question Image (Optional):';
+    String description = '';
+
+    if (q.type == QuestionType.fillInTheBlankWithImage) {
+      description = 'Students will see this image and type their answer.';
+    } else if (q.type == QuestionType.multipleChoiceWithImages) {
+      description =
+          'This image will be displayed above the multiple choice options.';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Text(
-          description,
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          label,
+          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey),
+        ),
+        if (description.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            description,
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+        ],
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: () async {
+            final imageUrl = await _pickImage();
+            if (imageUrl != null) {
+              setState(() {
+                q.questionImageUrl = imageUrl;
+                _questionImages[questionIndex] = imageUrl;
+              });
+            }
+          },
+          child: Container(
+            height: 150,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey[300]!),
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.grey[50],
+            ),
+            child:
+                (q.questionImageUrl ?? '').isEmpty
+                    ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_photo_alternate, color: Colors.grey),
+                        Text(
+                          'Tap to add question image (optional)',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    )
+                    : Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            q.questionImageUrl!,
+                            fit: BoxFit.contain,
+                            width: double.infinity,
+                            height: double.infinity,
+                          ),
+                        ),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Colors.black54,
+                            child: IconButton(
+                              icon: const Icon(Icons.delete, size: 16),
+                              color: Colors.white,
+                              onPressed: () {
+                                setState(() {
+                                  q.questionImageUrl = null;
+                                  _questionImages.remove(questionIndex);
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+          ),
         ),
       ],
-      const SizedBox(height: 8),
-      GestureDetector(
-        onTap: () async {
-          final imageUrl = await _pickImage();
-          if (imageUrl != null) {
-            setState(() {
-              q.questionImageUrl = imageUrl;
-              _questionImages[questionIndex] = imageUrl;
-            });
-          }
-        },
-        child: Container(
-          height: 150,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.grey[50],
-          ),
-          child: (q.questionImageUrl ?? '').isEmpty
-              ? Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_photo_alternate, color: Colors.grey),
-                    Text('Tap to add question image (optional)',
-                        style: TextStyle(fontSize: 12)),
-                  ],
-                )
-              : Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        q.questionImageUrl!,
-                        fit: BoxFit.contain,
-                        width: double.infinity,
-                        height: double.infinity,
-                      ),
-                    ),
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: CircleAvatar(
-                        radius: 16,
-                        backgroundColor: Colors.black54,
-                        child: IconButton(
-                          icon: const Icon(Icons.delete, size: 16),
-                          color: Colors.white,
-                          onPressed: () {
-                            setState(() {
-                              q.questionImageUrl = null;
-                              _questionImages.remove(questionIndex);
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-        ),
-      ),
-    ],
-  );
-}
-
-void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
-  if (q.type == QuestionType.trueFalse) {
-    q.options = ['True', 'False'];
-  } else if (q.type == QuestionType.multipleChoice ||
-             q.type == QuestionType.multipleChoiceWithImages) {
-    q.options = List.generate(4, (i) => 'Option ${i + 1}');
-    
-    // Initialize option images for multiple choice with images
-    if (q.type == QuestionType.multipleChoiceWithImages) {
-      if (!_optionImages.containsKey(questionIndex)) {
-        _optionImages[questionIndex] = {};
-      }
-      for (int i = 0; i < q.options!.length; i++) {
-        _optionImages[questionIndex]![i] = null;
-      }
-      
-      // Clear any existing question image when switching to this type
-      q.questionImageUrl = null;
-      _questionImages.remove(questionIndex);
-    }
-  } else if (q.type == QuestionType.fillInTheBlank ||
-             q.type == QuestionType.fillInTheBlankWithImage) {
-    q.options = [];
-  } else if (q.type == QuestionType.dragAndDrop) {
-    q.options = List.generate(3, (i) => 'Item ${i + 1}');
+    );
   }
-  
-  // Clear correct answer when changing question type
-  q.correctAnswer = null;
-}
+
+  void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
+    if (q.type == QuestionType.trueFalse) {
+      q.options = ['True', 'False'];
+    } else if (q.type == QuestionType.multipleChoice ||
+        q.type == QuestionType.multipleChoiceWithImages) {
+      q.options = List.generate(4, (i) => 'Option ${i + 1}');
+
+      // Initialize option images for multiple choice with images
+      if (q.type == QuestionType.multipleChoiceWithImages) {
+        if (!_optionImages.containsKey(questionIndex)) {
+          _optionImages[questionIndex] = {};
+        }
+        for (int i = 0; i < q.options!.length; i++) {
+          _optionImages[questionIndex]![i] = null;
+        }
+
+        // Clear any existing question image when switching to this type
+        q.questionImageUrl = null;
+        _questionImages.remove(questionIndex);
+      }
+    } else if (q.type == QuestionType.fillInTheBlank ||
+        q.type == QuestionType.fillInTheBlankWithImage) {
+      q.options = [];
+    } else if (q.type == QuestionType.dragAndDrop) {
+      q.options = List.generate(3, (i) => 'Item ${i + 1}');
+    }
+
+    // Clear correct answer when changing question type
+    q.correctAnswer = null;
+  }
 
   Widget _buildQuestionTypeContent(QuizQuestion q, int questionIndex) {
     final theme = Theme.of(context);
@@ -734,7 +777,7 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
     switch (q.type) {
       case QuestionType.multipleChoice:
         return _buildMultipleChoiceContent(q, questionIndex, false);
-        
+
       case QuestionType.multipleChoiceWithImages:
         return _buildMultipleChoiceContent(q, questionIndex, true);
 
@@ -767,7 +810,9 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
                     child: ListTile(
                       leading: const Icon(Icons.drag_handle),
                       title: TextField(
-                        controller: TextEditingController(text: q.options?[i] ?? ''),
+                        controller: TextEditingController(
+                          text: q.options?[i] ?? '',
+                        ),
                         decoration: InputDecoration(
                           labelText: 'Item ${i + 1}',
                           border: InputBorder.none,
@@ -858,10 +903,7 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
               ),
               child: Text(
                 'Students will see the image above and type their answer in a text box.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colorScheme.primary,
-                ),
+                style: TextStyle(fontSize: 12, color: colorScheme.primary),
               ),
             ),
           ],
@@ -936,7 +978,9 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
                     children: [
                       Expanded(
                         child: TextField(
-                          controller: TextEditingController(text: pair.leftItem),
+                          controller: TextEditingController(
+                            text: pair.leftItem,
+                          ),
                           decoration: InputDecoration(
                             labelText: 'Left Item (Text)',
                             border: OutlineInputBorder(
@@ -950,19 +994,12 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
                       Expanded(
                         child: InkWell(
                           onTap: () async {
-                            final picker = ImagePicker();
-                            final pickedFile = await picker.pickImage(
-                              source: ImageSource.gallery,
-                              imageQuality: 80,
-                            );
-                            if (pickedFile != null) {
-                              File file = File(pickedFile.path);
-                              String? uploadedUrl = await ApiService.uploadFile(file);
-                              if (uploadedUrl != null) {
-                                setState(() {
-                                  pair.rightItemUrl = uploadedUrl;
-                                });
-                              }
+                            final imageUrl =
+                                await _pickImage(); // reuse the fixed method
+                            if (imageUrl != null) {
+                              setState(() {
+                                pair.rightItemUrl = imageUrl;
+                              });
                             }
                           },
                           child: Container(
@@ -973,31 +1010,35 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
                                 width: 1.5,
                               ),
                               borderRadius: BorderRadius.circular(8),
-                              color: colorScheme.surfaceVariant.withOpacity(0.3),
+                              color: colorScheme.surfaceVariant.withOpacity(
+                                0.3,
+                              ),
                             ),
-                            child: (pair.rightItemUrl ?? '').isEmpty
-                                ? Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.add_photo_alternate,
-                                        size: 40,
-                                        color: colorScheme.onSurfaceVariant,
+                            child:
+                                (pair.rightItemUrl ?? '').isEmpty
+                                    ? Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.add_photo_alternate,
+                                          size: 40,
+                                          color: colorScheme.onSurfaceVariant,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Tap to add image',
+                                          style: theme.textTheme.bodySmall,
+                                        ),
+                                      ],
+                                    )
+                                    : ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        pair.rightItemUrl!,
+                                        fit: BoxFit.contain,
                                       ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Tap to add image',
-                                        style: theme.textTheme.bodySmall,
-                                      ),
-                                    ],
-                                  )
-                                : ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.network(
-                                      pair.rightItemUrl!,
-                                      fit: BoxFit.contain,
                                     ),
-                                  ),
                           ),
                         ),
                       ),
@@ -1039,7 +1080,11 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
     }
   }
 
-  Widget _buildMultipleChoiceContent(QuizQuestion q, int questionIndex, bool withImages) {
+  Widget _buildMultipleChoiceContent(
+    QuizQuestion q,
+    int questionIndex,
+    bool withImages,
+  ) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -1055,7 +1100,7 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
         const SizedBox(height: 8),
         ...List.generate(q.options?.length ?? 0, (i) {
           final optionImage = _getOptionImage(questionIndex, i);
-          
+
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Card(
@@ -1064,9 +1109,10 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
                 side: BorderSide(
-                  color: q.correctAnswer == q.options![i]
-                      ? colorScheme.primary
-                      : colorScheme.outline.withOpacity(0.3),
+                  color:
+                      q.correctAnswer == q.options![i]
+                          ? colorScheme.primary
+                          : colorScheme.outline.withOpacity(0.3),
                 ),
               ),
               child: Padding(
@@ -1091,62 +1137,79 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
                             borderRadius: BorderRadius.circular(8),
                             color: Colors.grey[50],
                           ),
-                          child: (optionImage ?? '').isEmpty
-                              ? const Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.add_photo_alternate, color: Colors.grey),
-                                    Text('Tap to add image (optional)',
-                                        style: TextStyle(fontSize: 12)),
-                                  ],
-                                )
-                              : Stack(
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.network(
-                                        optionImage!,
-                                        fit: BoxFit.contain,
-                                        width: double.infinity,
-                                        height: double.infinity,
+                          child:
+                              (optionImage ?? '').isEmpty
+                                  ? const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.add_photo_alternate,
+                                        color: Colors.grey,
                                       ),
-                                    ),
-                                    Positioned(
-                                      top: 4,
-                                      right: 4,
-                                      child: CircleAvatar(
-                                        radius: 14,
-                                        backgroundColor: Colors.black54,
-                                        child: IconButton(
-                                          icon: const Icon(Icons.delete, size: 12),
-                                          color: Colors.white,
-                                          onPressed: () {
-                                            _removeOptionImage(questionIndex, i);
-                                          },
+                                      Text(
+                                        'Tap to add image (optional)',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                    ],
+                                  )
+                                  : Stack(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          optionImage!,
+                                          fit: BoxFit.contain,
+                                          width: double.infinity,
+                                          height: double.infinity,
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
+                                      Positioned(
+                                        top: 4,
+                                        right: 4,
+                                        child: CircleAvatar(
+                                          radius: 14,
+                                          backgroundColor: Colors.black54,
+                                          child: IconButton(
+                                            icon: const Icon(
+                                              Icons.delete,
+                                              size: 12,
+                                            ),
+                                            color: Colors.white,
+                                            onPressed: () {
+                                              _removeOptionImage(
+                                                questionIndex,
+                                                i,
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                         ),
                       ),
                       const SizedBox(height: 8),
                     ],
-                    
+
                     Row(
                       children: [
                         Expanded(
                           child: TextField(
-                            controller: TextEditingController(text: q.options![i]),
+                            controller: TextEditingController(
+                              text: q.options![i],
+                            ),
                             decoration: InputDecoration(
-                              labelText: withImages 
-                                  ? 'Option ${i + 1} (optional text)' 
-                                  : 'Option ${i + 1}',
+                              labelText:
+                                  withImages
+                                      ? 'Option ${i + 1} (optional text)'
+                                      : 'Option ${i + 1}',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               filled: true,
-                              fillColor: colorScheme.surfaceVariant.withOpacity(0.1),
+                              fillColor: colorScheme.surfaceVariant.withOpacity(
+                                0.1,
+                              ),
                             ),
                             onChanged: (val) => q.options![i] = val,
                           ),
@@ -1188,7 +1251,7 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
             ),
           ),
         ),
-        
+
         if (withImages) ...[
           const SizedBox(height: 8),
           Container(
@@ -1199,10 +1262,7 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
             ),
             child: Text(
               'Each option can have either text, image, or both. At least one must be provided.',
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.primary,
-              ),
+              style: TextStyle(fontSize: 12, color: colorScheme.primary),
             ),
           ),
         ],
@@ -1287,7 +1347,9 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
             Padding(
               padding: const EdgeInsets.only(right: 16),
               child: Chip(
-                label: Text('${_questions.length} question${_questions.length == 1 ? '' : 's'}'),
+                label: Text(
+                  '${_questions.length} question${_questions.length == 1 ? '' : 's'}',
+                ),
                 backgroundColor: colorScheme.primary.withOpacity(0.1),
                 labelStyle: TextStyle(color: colorScheme.primary),
               ),
@@ -1352,8 +1414,11 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
                       FutureBuilder<List<Map<String, dynamic>>>(
                         future: ApiService.getLessons(),
                         builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Center(child: CircularProgressIndicator());
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
                           }
                           if (!snapshot.hasData || snapshot.data!.isEmpty) {
                             return Container(
@@ -1376,18 +1441,24 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               filled: true,
-                              fillColor: colorScheme.surfaceVariant.withOpacity(0.3),
+                              fillColor: colorScheme.surfaceVariant.withOpacity(
+                                0.3,
+                              ),
                             ),
                             hint: const Text("Select a lesson"),
-                            items: lessons.map((lesson) {
-                              return DropdownMenuItem<String>(
-                                value: lesson['id'].toString(),
-                                child: Text(
-                                  lesson['title']?.toString() ?? 'Untitled Lesson',
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (val) => setState(() => _selectedLessonId = val),
+                            items:
+                                lessons.map((lesson) {
+                                  return DropdownMenuItem<String>(
+                                    value: lesson['id'].toString(),
+                                    child: Text(
+                                      lesson['title']?.toString() ??
+                                          'Untitled Lesson',
+                                    ),
+                                  );
+                                }).toList(),
+                            onChanged:
+                                (val) =>
+                                    setState(() => _selectedLessonId = val),
                           );
                         },
                       ),
@@ -1395,7 +1466,8 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
                   ),
                 ),
               ),
-            if (!_isEditMode && widget.lessonId == null) const SizedBox(height: 16),
+            if (!_isEditMode && widget.lessonId == null)
+              const SizedBox(height: 16),
 
             // Questions Section Header
             Row(
@@ -1425,38 +1497,41 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
 
             // Questions List
             Expanded(
-              child: _questions.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.quiz,
-                            size: 80,
-                            color: colorScheme.onSurface.withOpacity(0.3),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No questions added yet',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: colorScheme.onSurface.withOpacity(0.5),
+              child:
+                  _questions.isEmpty
+                      ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.quiz,
+                              size: 80,
+                              color: colorScheme.onSurface.withOpacity(0.3),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Click "Add Question" to start',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurface.withOpacity(0.4),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No questions added yet',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: colorScheme.onSurface.withOpacity(0.5),
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 8),
+                            Text(
+                              'Click "Add Question" to start',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurface.withOpacity(0.4),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                      : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _questions.length,
+                        itemBuilder:
+                            (context, index) =>
+                                _buildQuestionCard(_questions[index], index),
                       ),
-                    )
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: _questions.length,
-                      itemBuilder: (context, index) => _buildQuestionCard(_questions[index], index),
-                    ),
             ),
 
             // Save Button
@@ -1465,7 +1540,9 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
               padding: const EdgeInsets.only(top: 16, bottom: 8),
               decoration: BoxDecoration(
                 color: colorScheme.surface,
-                border: Border(top: BorderSide(color: colorScheme.outline.withOpacity(0.1))),
+                border: Border(
+                  top: BorderSide(color: colorScheme.outline.withOpacity(0.1)),
+                ),
               ),
               child: Row(
                 children: [
@@ -1481,26 +1558,30 @@ void _initializeQuestionOptions(QuizQuestion q, int questionIndex) {
                         ),
                         elevation: 3,
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(strokeWidth: 3),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(_isEditMode ? Icons.save : Icons.add),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _isEditMode ? 'Update Quiz' : 'Save Quiz',
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: colorScheme.onPrimary,
-                                  ),
+                      child:
+                          _isLoading
+                              ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
                                 ),
-                              ],
-                            ),
+                              )
+                              : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(_isEditMode ? Icons.save : Icons.add),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    _isEditMode ? 'Update Quiz' : 'Save Quiz',
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                          color: colorScheme.onPrimary,
+                                        ),
+                                  ),
+                                ],
+                              ),
                     ),
                   ),
                 ],

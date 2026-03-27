@@ -199,12 +199,12 @@ class ClassroomService {
               .single();
 
       final teacherId = teacher['id'];
-      final response = await supabase
-          .from('class_rooms')
-          .select(
-            'id, class_name, grade_level, section, teacher_id, school_year, student_enrollments(student_id)',
-          )
-          .eq('teacher_id', teacherId);
+final response = await supabase
+    .from('class_rooms')
+    .select(
+      'id, class_name, grade_level, section, teacher_id, school_year, background_image, student_enrollments(student_id)',
+    )
+    .eq('teacher_id', teacherId);
 
       return (response as List<dynamic>).map((json) {
         final data = Map<String, dynamic>.from(json);
@@ -730,87 +730,69 @@ class ClassroomService {
     }
   }
 
-  static Future<http.Response?> uploadClassBackground({
-    required String classId,
-    required String filePath,
-    double sizeLimitMB = FileValidator.defaultMaxSizeMB,
-  }) async {
-    try {
-      final supabase = Supabase.instance.client;
+static Future<http.Response?> uploadClassBackground({
+  required String classId,
+  required Uint8List fileBytes,       // ← bytes instead of path
+  required String fileName,           // ← original filename for extension
+  double sizeLimitMB = FileValidator.defaultMaxSizeMB,
+}) async {
+  try {
+    final supabase = Supabase.instance.client;
 
-      final file = File(filePath);
-      final sizeValidation = await validateFileSize(file, limitMB: sizeLimitMB);
-      if (!sizeValidation.isValid) {
-        throw FileSizeLimitException(
-          FileValidator.backendLimitMessage(sizeLimitMB),
-          actualSizeMB: sizeValidation.actualSizeMB,
-          limitMB: sizeLimitMB,
-        );
-      }
-
-      final fileName =
-          'class_backgrounds/$classId-${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-      final fileBytes = await file.readAsBytes();
-
-      // Upload file to Supabase storage
-      try {
-        await supabase.storage
-            .from('materials')
-            .uploadBinary(
-              fileName,
-              fileBytes,
-              fileOptions: const FileOptions(upsert: true),
-            );
-      } catch (storageError) {
-        print('Error uploading file to storage: $storageError');
-        return null; // File upload failed, return null
-      }
-
-      final publicUrl = supabase.storage
-          .from('materials')
-          .getPublicUrl(fileName);
-
-      // Try to update class_rooms table - this may fail if column doesn't exist yet
-      // But we still return success since the file was uploaded and SharedPreferences will handle it
-      try {
-        await supabase
-            .from('class_rooms')
-            .update({'background_image': publicUrl})
-            .eq('id', classId);
-
-        print('✅ Successfully updated class_rooms table with background_image');
-      } catch (dbError) {
-        // Database update failed (likely column doesn't exist), but file upload succeeded
-        // Log the error but continue - SharedPreferences will handle the storage
-        print(
-          '⚠️ Warning: Could not update class_rooms.background_image column: $dbError',
-        );
-        print(
-          '⚠️ This may be because the column does not exist in the database yet.',
-        );
-        print(
-          '⚠️ Please run the SQL migration to add the background_image column.',
-        );
-        print(
-          '⚠️ The image was uploaded successfully and will work with SharedPreferences.',
-        );
-      }
-
-      // Return success response even if database update failed
-      // The file is uploaded and the URL is valid
-      return http.Response(
-        jsonEncode({'background_image': publicUrl}),
-        200,
-        headers: {'content-type': 'application/json'},
+    // Validate size from bytes directly (no File needed)
+    final sizeValidation = validateFileSizeFromBytes(fileBytes, limitMB: sizeLimitMB);
+    if (!sizeValidation.isValid) {
+      throw FileSizeLimitException(
+        FileValidator.backendLimitMessage(sizeLimitMB),
+        actualSizeMB: sizeValidation.actualSizeMB,
+        limitMB: sizeLimitMB,
       );
-    } on FileSizeLimitException {
-      rethrow;
-    } catch (e) {
-      print('❌ Error uploading class background: $e');
+    }
+
+    final storagePath =
+        'class_backgrounds/$classId-${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+    // Upload bytes directly — works on web + mobile
+    try {
+      await supabase.storage
+          .from('materials')
+          .uploadBinary(
+            storagePath,
+            fileBytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
+    } catch (storageError) {
+      print('Error uploading file to storage: $storageError');
       return null;
     }
+
+    final publicUrl = supabase.storage
+        .from('materials')
+        .getPublicUrl(storagePath);
+
+    try {
+      await supabase
+          .from('class_rooms')
+          .update({'background_image': publicUrl})
+          .eq('id', classId);
+
+      print('✅ Successfully updated class_rooms table with background_image');
+    } catch (dbError) {
+      print('⚠️ Warning: Could not update class_rooms.background_image column: $dbError');
+    }
+
+    return http.Response(
+      jsonEncode({'background_image': publicUrl}),
+      200,
+      headers: {'content-type': 'application/json'},
+    );
+  } on FileSizeLimitException {
+    rethrow;
+  } catch (e) {
+    print('❌ Error uploading class background: $e');
+    return null;
   }
+}
 
 /// Create a new announcement
 static Future<Announcement?> createAnnouncement({
@@ -1184,4 +1166,12 @@ static Future<void> _deleteAnnouncementImage(String? imageUrl) async {
     debugPrint('❌ Error deleting announcement image: $e');
   }
 }
-}
+
+// Bytes version — no dart:io needed
+static ({bool isValid, double actualSizeMB}) validateFileSizeFromBytes(
+  Uint8List bytes, {
+  required double limitMB,
+}) {
+  final actualSizeMB = bytes.lengthInBytes / (1024 * 1024);
+  return (isValid: actualSizeMB <= limitMB, actualSizeMB: actualSizeMB);
+}}
