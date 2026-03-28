@@ -380,6 +380,7 @@ class _TeacherReadingMaterialsPageState
     String? fileType, {
     String? title,
     bool allowAudioRecording = false,
+    Uint8List? webFileBytes, // Add this parameter
   }) async {
     try {
       final audioPath = await Navigator.push<String?>(
@@ -392,6 +393,7 @@ class _TeacherReadingMaterialsPageState
                 title: title,
                 allowAudioRecording: allowAudioRecording,
                 primaryColor: Theme.of(context).colorScheme.primary,
+                webFileBytes: webFileBytes, // Pass the bytes
               ),
         ),
       );
@@ -440,16 +442,12 @@ class _TeacherReadingMaterialsPageState
       builder:
           (context) => StatefulBuilder(
             builder: (context, setDialogState) {
-              Future<void> pickFile(FileType type) async {
+              Future<void> pickAnyFile() async {
                 FilePickerResult? result;
 
                 try {
                   result = await FilePicker.platform.pickFiles(
-                    type: type,
-                    allowedExtensions:
-                        type == FileType.custom
-                            ? ['pdf', 'webp']
-                            : ['jpg', 'jpeg', 'png', 'webp'],
+                    type: FileType.any, // This allows any file type
                     withData: kIsWeb,
                   );
                 } catch (e) {
@@ -473,10 +471,7 @@ class _TeacherReadingMaterialsPageState
                     final virtualPath =
                         '/web/${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
                     savedFile = File(virtualPath);
-
-                    // Store the bytes - must be done before setDialogState
                     _webFileBytes[virtualPath] = bytes;
-
                     debugPrint(
                       '📁 [FILE_PICKER] Web virtual path created: $virtualPath',
                     );
@@ -505,14 +500,21 @@ class _TeacherReadingMaterialsPageState
                     debugPrint('📁 [FILE_PICKER] Saved to: $destPath');
                   }
 
-                  // Only call setDialogState if the dialog is still active
-                  if (!mounted) return;
-
+                  // Detect file type based on extension
+                  final extension =
+                      pickedFile.name.toLowerCase().split('.').last;
                   final detectedType =
-                      (type == FileType.custom ||
-                              pickedFile.name.toLowerCase().endsWith('.pdf'))
-                          ? 'pdf'
-                          : 'image';
+                      (extension == 'pdf' ||
+                              extension == 'doc' ||
+                              extension == 'docx' ||
+                              extension == 'txt')
+                          ? 'document'
+                          : (extension == 'jpg' ||
+                              extension == 'jpeg' ||
+                              extension == 'png' ||
+                              extension == 'webp')
+                          ? 'image'
+                          : 'other';
 
                   setDialogState(() {
                     selectedFile = savedFile;
@@ -712,8 +714,9 @@ class _TeacherReadingMaterialsPageState
                                   selectedFile: selectedFile,
                                   fileType: fileType,
                                   titleController: titleController,
-                                  onPickPdf: () => pickFile(FileType.custom),
-                                  onPickImage: () => pickFile(FileType.image),
+                                  onPickFile:
+                                      () =>
+                                          pickAnyFile(), // Single pick function
                                   onRemoveFile:
                                       () => setDialogState(() {
                                         selectedFile = null;
@@ -1014,8 +1017,7 @@ class _TeacherReadingMaterialsPageState
     required File? selectedFile,
     required String? fileType,
     required TextEditingController titleController,
-    required VoidCallback onPickPdf,
-    required VoidCallback onPickImage,
+    required VoidCallback onPickFile, // Changed from two separate callbacks
     required VoidCallback onRemoveFile,
     required ValueChanged<String> onAudioAdded,
     required VoidCallback onAudioRemoved,
@@ -1035,23 +1037,37 @@ class _TeacherReadingMaterialsPageState
       ),
       child: Column(
         children: [
-          if (fileType == 'pdf')
+          if (fileType == 'document')
             Icon(Icons.picture_as_pdf, size: 40, color: Colors.red[600])
           else if (fileType == 'image')
             Icon(Icons.image, size: 40, color: Colors.green[600])
+          else if (fileType == 'other')
+            Icon(Icons.insert_drive_file, size: 40, color: Colors.orange[600])
           else
-            Icon(Icons.insert_drive_file, size: 40, color: primaryColor),
+            Icon(Icons.upload_file, size: 40, color: primaryColor),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                child: _filePickButton(
-                  label: 'Upload File',
-                  icon: Icons.file_open,
-                  bgColor: Colors.red[50]!,
-                  fgColor: Colors.red[700]!,
-                  borderColor: Colors.red[200]!,
-                  onPressed: onPickPdf,
+                child: ElevatedButton.icon(
+                  onPressed: onPickFile,
+                  icon: const Icon(Icons.attach_file, size: 20),
+                  label: const Text(
+                    'Choose File',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: primaryColor.withOpacity(0.3)),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1061,11 +1077,20 @@ class _TeacherReadingMaterialsPageState
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: fileType == 'pdf' ? Colors.red[50] : Colors.green[50],
+                color:
+                    fileType == 'document'
+                        ? Colors.red[50]
+                        : fileType == 'image'
+                        ? Colors.green[50]
+                        : Colors.orange[50],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color:
-                      fileType == 'pdf' ? Colors.red[200]! : Colors.green[200]!,
+                      fileType == 'document'
+                          ? Colors.red[200]!
+                          : fileType == 'image'
+                          ? Colors.green[200]!
+                          : Colors.orange[200]!,
                 ),
               ),
               child: Column(
@@ -1073,11 +1098,17 @@ class _TeacherReadingMaterialsPageState
                   Row(
                     children: [
                       Icon(
-                        fileType == 'pdf' ? Icons.picture_as_pdf : Icons.image,
+                        fileType == 'document'
+                            ? Icons.picture_as_pdf
+                            : fileType == 'image'
+                            ? Icons.image
+                            : Icons.insert_drive_file,
                         color:
-                            fileType == 'pdf'
+                            fileType == 'document'
                                 ? Colors.red[600]
-                                : Colors.green[600],
+                                : fileType == 'image'
+                                ? Colors.green[600]
+                                : Colors.orange[600],
                         size: 24,
                       ),
                       const SizedBox(width: 12),
@@ -1092,19 +1123,27 @@ class _TeacherReadingMaterialsPageState
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 color:
-                                    fileType == 'pdf'
+                                    fileType == 'document'
                                         ? Colors.red[700]
-                                        : Colors.green[700],
+                                        : fileType == 'image'
+                                        ? Colors.green[700]
+                                        : Colors.orange[700],
                               ),
                             ),
                             Text(
-                              fileType == 'pdf' ? 'PDF Document' : 'Image File',
+                              fileType == 'document'
+                                  ? 'Document File'
+                                  : fileType == 'image'
+                                  ? 'Image File'
+                                  : 'Other File Type',
                               style: TextStyle(
                                 fontSize: 12,
                                 color:
-                                    fileType == 'pdf'
+                                    fileType == 'document'
                                         ? Colors.red[600]
-                                        : Colors.green[600],
+                                        : fileType == 'image'
+                                        ? Colors.green[600]
+                                        : Colors.orange[600],
                               ),
                             ),
                           ],
@@ -1121,12 +1160,22 @@ class _TeacherReadingMaterialsPageState
                             tooltip: 'Preview & Add Audio',
                             onPressed: () async {
                               try {
+                                // Get the bytes for web
+                                Uint8List? webBytes;
+                                if (kIsWeb &&
+                                    _webFileBytes.containsKey(
+                                      selectedFile.path,
+                                    )) {
+                                  webBytes = _webFileBytes[selectedFile.path];
+                                }
+
                                 final audioPath =
                                     await _showFilePreviewWithAudio(
                                       selectedFile,
                                       fileType,
                                       title: titleController.text.trim(),
                                       allowAudioRecording: true,
+                                      webFileBytes: webBytes, // Pass the bytes
                                     );
                                 if (audioPath != null) {
                                   final isValid =
@@ -1241,8 +1290,14 @@ class _TeacherReadingMaterialsPageState
           ] else ...[
             const SizedBox(height: 8),
             Text(
-              'Select PDF or Image file',
+              'Select PDF, Image, or Document file',
               style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Supported: PDF, DOC, DOCX, TXT, JPG, PNG, WEBP',
+              style: TextStyle(fontSize: 10, color: Colors.grey[500]),
               textAlign: TextAlign.center,
             ),
           ],
@@ -3471,6 +3526,14 @@ class _ImagePreviewWithAudioScreenState
 // File preview with audio recording screen
 // ===========================================================================
 
+// ===========================================================================
+// File preview with audio recording screen (Web Compatible)
+// ===========================================================================
+
+// ===========================================================================
+// File preview with audio recording screen (Web Compatible)
+// ===========================================================================
+
 class _FilePreviewWithAudioScreen extends StatefulWidget {
   const _FilePreviewWithAudioScreen({
     required this.file,
@@ -3478,6 +3541,7 @@ class _FilePreviewWithAudioScreen extends StatefulWidget {
     this.title,
     required this.allowAudioRecording,
     required this.primaryColor,
+    this.webFileBytes, // Add this parameter
   });
 
   final File file;
@@ -3485,6 +3549,7 @@ class _FilePreviewWithAudioScreen extends StatefulWidget {
   final String? title;
   final bool allowAudioRecording;
   final Color primaryColor;
+  final Uint8List? webFileBytes; // Web file bytes
 
   @override
   __FilePreviewWithAudioScreenState createState() =>
@@ -3507,6 +3572,10 @@ class __FilePreviewWithAudioScreenState
   int _recordingSeconds = 0;
   bool _isDisposing = false;
 
+  // For web image preview
+  Uint8List? _imageBytes;
+  bool _isLoadingImage = false;
+
   // -------------------------------------------------------------------------
   // Lifecycle
   // -------------------------------------------------------------------------
@@ -3515,6 +3584,28 @@ class __FilePreviewWithAudioScreenState
   void initState() {
     super.initState();
     _setupPlayerListeners();
+    _loadImageForWeb();
+  }
+
+  Future<void> _loadImageForWeb() async {
+    if (kIsWeb && widget.fileType == 'image') {
+      setState(() => _isLoadingImage = true);
+      try {
+        // On web, use the passed bytes
+        if (widget.webFileBytes != null) {
+          _imageBytes = widget.webFileBytes;
+          debugPrint(
+            '✅ [WEB] Image bytes loaded, size: ${_imageBytes!.length}',
+          );
+        } else {
+          debugPrint('⚠️ [WEB] No image bytes provided');
+        }
+      } catch (e) {
+        debugPrint('❌ [WEB] Error loading image: $e');
+      } finally {
+        if (mounted) setState(() => _isLoadingImage = false);
+      }
+    }
   }
 
   @override
@@ -3836,7 +3927,7 @@ class __FilePreviewWithAudioScreenState
   Widget build(BuildContext context) {
     final canRecord =
         widget.allowAudioRecording &&
-        (widget.fileType == 'pdf' || widget.fileType == 'image');
+        (widget.fileType == 'document' || widget.fileType == 'image');
 
     return WillPopScope(
       onWillPop: () async {
@@ -3864,19 +3955,7 @@ class __FilePreviewWithAudioScreenState
         body: Column(
           children: [
             if (canRecord) _buildRecordingPanel(),
-            Expanded(
-              child:
-                  widget.fileType == 'pdf'
-                      ? SfPdfViewer.file(widget.file)
-                      : Center(
-                        child: InteractiveViewer(
-                          panEnabled: true,
-                          minScale: 0.5,
-                          maxScale: 3.0,
-                          child: Image.file(widget.file, fit: BoxFit.contain),
-                        ),
-                      ),
-            ),
+            Expanded(child: _buildFilePreview()),
           ],
         ),
         floatingActionButton:
@@ -3908,6 +3987,113 @@ class __FilePreviewWithAudioScreenState
                 : null,
       ),
     );
+  }
+
+  Widget _buildFilePreview() {
+    if (widget.fileType == 'document' || widget.fileType == 'pdf') {
+      // For PDFs, use SfPdfViewer which works on both mobile and web
+      try {
+        if (kIsWeb && widget.webFileBytes != null) {
+          // On web, use memory
+          return SfPdfViewer.memory(widget.webFileBytes!);
+        } else if (!kIsWeb) {
+          // For mobile, use file
+          return SfPdfViewer.file(widget.file);
+        } else {
+          // Fallback for web without bytes
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.picture_as_pdf, size: 48, color: Colors.red),
+                SizedBox(height: 16),
+                Text('Unable to preview PDF'),
+                Text('File data not available', style: TextStyle(fontSize: 12)),
+              ],
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint('❌ [PREVIEW] PDF view error: $e');
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              Text('Unable to preview PDF: ${e.toString()}'),
+            ],
+          ),
+        );
+      }
+    } else if (widget.fileType == 'image') {
+      // Handle images with web compatibility
+      if (kIsWeb) {
+        // On web, use memory bytes if available
+        if (_imageBytes != null) {
+          return InteractiveViewer(
+            panEnabled: true,
+            minScale: 0.5,
+            maxScale: 3.0,
+            child: Image.memory(
+              _imageBytes!,
+              fit: BoxFit.contain,
+              errorBuilder:
+                  (_, __, ___) =>
+                      const Center(child: Text('Failed to load image')),
+            ),
+          );
+        } else if (_isLoadingImage) {
+          return const Center(child: CircularProgressIndicator());
+        } else {
+          // Fallback for web
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                SizedBox(height: 16),
+                Text('Unable to load image preview'),
+              ],
+            ),
+          );
+        }
+      } else {
+        // Mobile: use Image.file
+        return InteractiveViewer(
+          panEnabled: true,
+          minScale: 0.5,
+          maxScale: 3.0,
+          child: Image.file(
+            widget.file,
+            fit: BoxFit.contain,
+            errorBuilder:
+                (_, __, ___) =>
+                    const Center(child: Text('Failed to load image')),
+          ),
+        );
+      }
+    } else {
+      // Other file types
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.insert_drive_file, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Preview not available for this file type',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'File: ${widget.file.path.split('/').last}',
+              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Widget _buildRecordingPanel() {

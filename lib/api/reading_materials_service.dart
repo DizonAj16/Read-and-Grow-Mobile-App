@@ -4,7 +4,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/validators.dart';
 import '../utils/database_helpers.dart';
-import '../utils/file_validator.dart';
 
 class ReadingMaterial {
   final String id;
@@ -141,7 +140,7 @@ static Future<Map<String, dynamic>?> uploadReadingMaterial({
         return {'error': 'File data not available on web'};
       }
       
-      if (fileBytes == null || fileBytes.isEmpty) {
+      if (fileBytes.isEmpty) {
         return {'error': 'File is empty or could not be read'};
       }
     } catch (e) {
@@ -169,10 +168,8 @@ static Future<Map<String, dynamic>?> uploadReadingMaterial({
           
           if (audioExists) {
             audioFileBytes = await audioFile.readAsBytes();
-            if (audioFileBytes != null) {
-              debugPrint('📚 [READING_MATERIAL] Audio bytes loaded: ${audioFileBytes.length} bytes');
-            }
-          }
+            debugPrint('📚 [READING_MATERIAL] Audio bytes loaded: ${audioFileBytes.length} bytes');
+                    }
         }
         
         if (audioFileBytes != null && audioFileBytes.isNotEmpty) {
@@ -464,7 +461,7 @@ static Future<Map<String, dynamic>?> uploadReadingMaterial({
       try {
         await supabase.storage.from('materials').remove([storagePath]);
         if (audioUrl != null) {
-          final audioPath = audioUrl!.split('materials/').last;
+          final audioPath = audioUrl.split('materials/').last;
           await supabase.storage.from('materials').remove([audioPath]);
         }
       } catch (e) {
@@ -1016,18 +1013,10 @@ static Future<Map<String, dynamic>?> uploadReadingMaterial({
 
       String? filePath;
       String? audioPath;
-      String? materialTitle;
-      String? levelId;
-      String? classRoomId;
-      String? prerequisiteId;
 
       if (material != null) {
         final fileUrl = material['file_url'] as String?;
         final audioUrl = material['audio_url'] as String?; // NEW
-        materialTitle = material['title'] as String?;
-        levelId = material['level_id'] as String?;
-        classRoomId = material['class_room_id'] as String?;
-        prerequisiteId = material['prerequisite_id'] as String?;
 
         // Delete main file
         if (fileUrl != null && fileUrl.contains('materials/')) {
@@ -1108,7 +1097,7 @@ static Future<Map<String, dynamic>?> uploadReadingMaterial({
       }
 
       // NEW: Step 3 - Find and update any materials that have this material as their prerequisite
-      if (materialId != null && materialId.isNotEmpty) {
+      if (materialId.isNotEmpty) {
         try {
           debugPrint('🔄 [READING_MATERIAL] Updating dependent materials...');
           await supabase
@@ -1823,18 +1812,4 @@ static Future<Map<String, dynamic>?> uploadReadingMaterial({
     }
   }
   
-  static Future<Uint8List?> _readFileBytes(File file) async {
-    try {
-      if (!kIsWeb) {
-        // Mobile/Desktop: Direct file read
-        return await file.readAsBytes();
-      } else {
-        // Web: Need to handle differently
-        // On web, the file is already in memory when picked
-        return await file.readAsBytes();
-      }
-    } catch (e) {
-      debugPrint('❌ [FILE_READ] Error reading file: $e');
-      return null;
-    }
-  }}
+}
