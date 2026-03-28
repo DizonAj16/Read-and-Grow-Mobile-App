@@ -998,6 +998,7 @@ static Future<Map<String, dynamic>?> uploadReadingMaterial({
   }
 
 /// Delete a reading material and all associated files from storage
+/// Delete a reading material and all associated files from storage
 static Future<bool> deleteReadingMaterial(String materialId) async {
   try {
     debugPrint('📚 [READING_MATERIAL] Deleting material: $materialId');
@@ -1046,7 +1047,8 @@ static Future<bool> deleteReadingMaterial(String materialId) async {
       for (final recording in recordings) {
         final recordingUrl = recording['recording_url'] as String? ?? recording['file_url'] as String?;
         if (recordingUrl != null && recordingUrl.isNotEmpty) {
-          await _deleteFileFromStorage(recordingUrl, 'student_recording');
+          final deleted = await _deleteFileFromStorage(recordingUrl, 'student_recording');
+          deletions['student_recording_${recording['id']}'] = deleted;
         }
       }
       
@@ -1116,18 +1118,20 @@ static Future<bool> _deleteFileFromStorage(String fileUrl, String fileType) asyn
   try {
     debugPrint('🗑️ [STORAGE] Deleting $fileType file: $fileUrl');
     
-    // Extract the storage path from the URL
-    final storagePath = _extractStoragePath(fileUrl);
-    
-    if (storagePath == null) {
-      debugPrint('⚠️ [STORAGE] Could not extract path from URL: $fileUrl');
+    if (fileUrl.isEmpty) {
+      debugPrint('⚠️ [STORAGE] Empty URL provided');
       return false;
     }
     
-    debugPrint('📁 [STORAGE] Extracted path: $storagePath');
+    // Extract the storage bucket and path from the URL
+    final (bucket, storagePath) = _extractBucketAndPath(fileUrl);
     
-    // Always use 'materials' bucket since both reading_materials and teacher_instructions are in it
-    const bucket = 'materials';
+    if (bucket == null || storagePath == null) {
+      debugPrint('⚠️ [STORAGE] Could not extract bucket/path from URL: $fileUrl');
+      return false;
+    }
+    
+    debugPrint('📁 [STORAGE] Extracted bucket: $bucket, path: $storagePath');
     
     // Try to delete the file
     await supabase.storage.from(bucket).remove([storagePath]);
@@ -1141,32 +1145,41 @@ static Future<bool> _deleteFileFromStorage(String fileUrl, String fileType) asyn
   }
 }
 
-/// Extract storage path from a Supabase storage URL
-static String? _extractStoragePath(String url) {
+/// Extract bucket name and storage path from a Supabase storage URL
+static (String? bucket, String? path) _extractBucketAndPath(String url) {
   try {
     final uri = Uri.parse(url);
     final pathSegments = uri.pathSegments;
     
-    // URL format: https://[project].supabase.co/storage/v1/object/public/materials/[path]
-    // Find the bucket name 'materials' in the path
-    final bucketIndex = pathSegments.indexOf('materials');
-    if (bucketIndex >= 0 && bucketIndex + 1 < pathSegments.length) {
-      // Return everything after 'materials'
-      return pathSegments.sublist(bucketIndex + 1).join('/');
+    // URL format: .../storage/v1/object/public/[BUCKET_NAME]/[PATH]
+    final publicIndex = pathSegments.indexOf('public');
+    if (publicIndex >= 0 && publicIndex + 1 < pathSegments.length) {
+      final bucket = pathSegments[publicIndex + 1];
+      // Return everything after the bucket
+      final path = pathSegments.sublist(publicIndex + 2).join('/');
+      debugPrint('🔍 [EXTRACT] Found bucket: $bucket, path: $path');
+      return (bucket, path);
     }
     
     // Fallback: Try to extract from URL string
-    if (url.contains('materials/')) {
-      final parts = url.split('materials/');
-      if (parts.length > 1) {
-        return parts[1];
+    // Check for common bucket names
+    final bucketNames = ['materials', 'student_voice', 'document', 'essay_submissions'];
+    for (final bucket in bucketNames) {
+      final bucketPattern = '/$bucket/';
+      if (url.contains(bucketPattern)) {
+        final parts = url.split(bucketPattern);
+        if (parts.length > 1) {
+          debugPrint('🔍 [EXTRACT] Found bucket via pattern: $bucket, path: ${parts[1]}');
+          return (bucket, parts[1]);
+        }
       }
     }
     
-    return null;
+    debugPrint('⚠️ [EXTRACT] Could not extract bucket from URL: $url');
+    return (null, null);
   } catch (e) {
-    debugPrint('⚠️ [STORAGE] Error extracting path: $e');
-    return null;
+    debugPrint('⚠️ [EXTRACT] Error extracting bucket and path: $e');
+    return (null, null);
   }
 }
 
@@ -1179,7 +1192,7 @@ static void _logDeletionSummary(String materialId, Map<String, bool> deletions) 
   debugPrint('   Files deleted: $successCount/$totalCount');
   
   deletions.forEach((type, success) {
-    debugPrint('   ${type.padRight(15)}: ${success ? "✅" : "⚠️"}');
+    debugPrint('   ${type.padRight(25)}: ${success ? "✅" : "⚠️"}');
   });
 }
 

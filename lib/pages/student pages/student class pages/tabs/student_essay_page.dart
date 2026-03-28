@@ -55,6 +55,9 @@ class _StudentEssayPageState extends State<StudentEssayPage> {
   bool _isOffline = false;
   bool _isConnected = true;
 
+  bool _hasStartedEssay = false;
+  bool _progressRecorded = false;
+
   @override
   void initState() {
     super.initState();
@@ -62,6 +65,30 @@ class _StudentEssayPageState extends State<StudentEssayPage> {
     _loadEssayQuestions();
     _loadLessonMaterials();
     _checkPreviousSubmission();
+    _checkIfAlreadyStarted(); // Add this line
+  }
+
+  // Add this method to check if already started
+  Future<void> _checkIfAlreadyStarted() async {
+    if (_isOffline) return;
+
+    try {
+      final existingProgress = await _supabase
+          .from('student_task_progress')
+          .select()
+          .eq('student_id', widget.studentId)
+          .eq('task_id', widget.taskId)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 5));
+
+      if (existingProgress != null) {
+        setState(() {
+          _progressRecorded = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking essay progress: $e');
+    }
   }
 
   @override
@@ -217,6 +244,12 @@ class _StudentEssayPageState extends State<StudentEssayPage> {
 
         _isLoading = false;
       });
+      // Track progress after questions are loaded
+      if (!_hasSubmittedPreviously &&
+          !_progressRecorded &&
+          _essayQuestions.isNotEmpty) {
+        _trackEssayProgress();
+      }
     } on TimeoutException {
       setState(() {
         _isLoading = false;
@@ -651,7 +684,7 @@ class _StudentEssayPageState extends State<StudentEssayPage> {
         );
       }
 
-      // Record submission
+      // Record submission in student_submissions
       try {
         await _supabase.from('student_submissions').insert({
           'assignment_id': widget.assignmentId,
@@ -661,8 +694,33 @@ class _StudentEssayPageState extends State<StudentEssayPage> {
           'max_score': 100,
           'attempt_number': 1,
         });
+
+        // ========== UPDATE STUDENT TASK PROGRESS ==========
+        // Mark progress as completed
+        await _supabase
+            .from('student_task_progress')
+            .update({
+              'completed': true,
+              'score': 100, // Essay is submitted, consider it complete
+              'max_score': 100,
+              'updated_at': DateTime.now().toIso8601String(),
+              'activity_details': {
+                ..._buildActivityDetails(),
+                'submitted_at': DateTime.now().toIso8601String(),
+                'total_words': _controllers.values.fold<int>(
+                  0,
+                  (sum, c) => sum + _countWords(c.text),
+                ),
+                'total_files': _attachedFiles.values.fold<int>(
+                  0,
+                  (sum, files) => sum + files.length,
+                ),
+              },
+            })
+            .eq('student_id', widget.studentId)
+            .eq('task_id', widget.taskId);
       } catch (e) {
-        // Clean up essay responses
+        // Clean up essay responses if submission recording fails
         for (var question in _essayQuestions) {
           try {
             await _supabase
@@ -1781,6 +1839,65 @@ class _StudentEssayPageState extends State<StudentEssayPage> {
         ],
       ),
     );
+  }
+
+  // Add this method to track essay progress
+  Future<void> _trackEssayProgress() async {
+    if (_progressRecorded || _isOffline) return;
+
+    try {
+      // Check if progress record exists
+      final existingProgress = await _supabase
+          .from('student_task_progress')
+          .select()
+          .eq('student_id', widget.studentId)
+          .eq('task_id', widget.taskId)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 10));
+
+      if (existingProgress != null) {
+        // Update existing record
+        await _supabase
+            .from('student_task_progress')
+            .update({
+              'updated_at': DateTime.now().toIso8601String(),
+              'activity_details': _buildActivityDetails(),
+            })
+            .eq('id', existingProgress['id']);
+      } else {
+        // Create new progress record
+        await _supabase.from('student_task_progress').insert({
+          'student_id': widget.studentId,
+          'task_id': widget.taskId,
+          'attempts_left': 3,
+          'score': 0,
+          'max_score': 100,
+          'activity_details': _buildActivityDetails(),
+          'correct_answers': 0,
+          'wrong_answers': 0,
+          'completed': false,
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+      }
+
+      setState(() {
+        _progressRecorded = true;
+      });
+    } catch (e) {
+      debugPrint('Error tracking essay progress: $e');
+    }
+  }
+
+  // Add this helper method to build activity details
+  Map<String, dynamic> _buildActivityDetails() {
+    return {
+      'essay_assignment_id': _essayAssignmentId,
+      'questions_count': _essayQuestions.length,
+      'started_at': DateTime.now().toIso8601String(),
+      'has_attachments': _attachedFiles.values.any((files) => files.isNotEmpty),
+      'has_responses': _controllers.values.any((c) => c.text.trim().isNotEmpty),
+    };
   }
 
   @override

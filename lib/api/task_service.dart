@@ -201,29 +201,74 @@ static Future<Map<String, dynamic>?> fetchQuizWithQuestions(
 
 // Add to TaskService class
 
-/// Delete a file from storage
+/// Delete a file from storage with proper bucket detection
 static Future<bool> deleteStorageFile(String fileUrl) async {
   try {
     final supabase = Supabase.instance.client;
     
     if (fileUrl.isEmpty) return true;
     
-    // Extract storage path
-    final storagePath = _extractStoragePath(fileUrl);
-    if (storagePath == null) {
-      debugPrint('⚠️ [STORAGE] Could not extract path from: $fileUrl');
+    // Extract bucket and path from URL
+    final (bucket, storagePath) = _extractBucketAndPath(fileUrl);
+    
+    if (bucket == null || storagePath == null) {
+      debugPrint('⚠️ [STORAGE] Could not extract bucket/path from: $fileUrl');
       return false;
     }
     
-    debugPrint('🗑️ [STORAGE] Deleting: $storagePath');
+    debugPrint('🗑️ [STORAGE] Deleting from bucket "$bucket": $storagePath');
     
-    // Always use 'materials' bucket
-    await supabase.storage.from('materials').remove([storagePath]);
+    // Delete from the correct bucket
+    await supabase.storage.from(bucket).remove([storagePath]);
     debugPrint('✅ [STORAGE] Deleted: $storagePath');
     return true;
   } catch (e) {
     debugPrint('❌ [STORAGE] Error deleting file: $e');
     return false;
+  }
+}
+
+/// Extract bucket name and storage path from a Supabase storage URL
+static (String? bucket, String? path) _extractBucketAndPath(String url) {
+  try {
+    final uri = Uri.parse(url);
+    final pathSegments = uri.pathSegments;
+    
+    // URL format: .../storage/v1/object/public/[BUCKET_NAME]/[PATH]
+    final publicIndex = pathSegments.indexOf('public');
+    if (publicIndex >= 0 && publicIndex + 1 < pathSegments.length) {
+      final bucket = pathSegments[publicIndex + 1];
+      // Return everything after the bucket
+      final path = pathSegments.sublist(publicIndex + 2).join('/');
+      debugPrint('🔍 [EXTRACT] Found bucket: $bucket, path: $path');
+      return (bucket, path);
+    }
+    
+    // Fallback: Try to extract from URL string using known bucket names
+    final knownBuckets = [
+      'materials',
+      'student_voice',
+      'essay_submissions',
+      'document',
+      'student_essay_attachments'
+    ];
+    
+    for (final bucket in knownBuckets) {
+      final bucketPattern = '/$bucket/';
+      if (url.contains(bucketPattern)) {
+        final parts = url.split(bucketPattern);
+        if (parts.length > 1) {
+          debugPrint('🔍 [EXTRACT] Found bucket via pattern: $bucket, path: ${parts[1]}');
+          return (bucket, parts[1]);
+        }
+      }
+    }
+    
+    debugPrint('⚠️ [EXTRACT] Could not extract bucket from URL: $url');
+    return (null, null);
+  } catch (e) {
+    debugPrint('⚠️ [EXTRACT] Error extracting bucket and path: $e');
+    return (null, null);
   }
 }
 
@@ -325,14 +370,13 @@ static Future<List<String>> getQuizImages(String quizId) async {
   }
 }
 
-/// Get all images associated with an essay assignment
-/// Get all images associated with an essay assignment (only question images for now)
+/// Get all images associated with an essay assignment (including attached files from JSONB)
 static Future<List<String>> getEssayImages(String essayId, String assignmentId) async {
   final supabase = Supabase.instance.client;
   final images = <String>[];
   
   try {
-    // Get essay questions that have images
+    // 1. Get essay questions that have images
     final essayQuestions = await supabase
         .from('essay_questions')
         .select('question_image_url')
@@ -346,7 +390,49 @@ static Future<List<String>> getEssayImages(String essayId, String assignmentId) 
       }
     }
     
-    // Student attachments will be implemented later - skipping for now
+    // 2. Get student essay responses with attached files from JSONB column
+    final essayResponses = await supabase
+        .from('student_essay_responses')
+        .select('attached_files')
+        .eq('assignment_id', assignmentId);
+    
+    for (final response in essayResponses) {
+      final attachedFiles = response['attached_files'];
+      if (attachedFiles != null) {
+        List<String> attachmentUrls = [];
+        
+        // Parse attached_files JSONB
+        if (attachedFiles is List) {
+          // Already parsed as List
+          attachmentUrls = attachedFiles.cast<String>();
+        } else if (attachedFiles is String && attachedFiles.isNotEmpty) {
+          // Parse JSON string
+          try {
+            final decoded = json.decode(attachedFiles);
+            if (decoded is List) {
+              attachmentUrls = decoded.cast<String>();
+            }
+          } catch (e) {
+            debugPrint('⚠️ Error parsing attached_files JSON: $e');
+          }
+        } else if (attachedFiles is Map && attachedFiles.containsKey('files')) {
+          // Alternative structure if files are stored under 'files' key
+          final files = attachedFiles['files'];
+          if (files is List) {
+            attachmentUrls = files.cast<String>();
+          }
+        }
+        
+        // Add each attachment URL to the list
+        for (final url in attachmentUrls) {
+          if (url.isNotEmpty) {
+            images.add(url);
+            debugPrint('📸 Found student attachment: $url');
+          }
+        }
+      }
+    }
+    
     debugPrint('📸 Total essay images found: ${images.length}');
     return images;
   } catch (e) {

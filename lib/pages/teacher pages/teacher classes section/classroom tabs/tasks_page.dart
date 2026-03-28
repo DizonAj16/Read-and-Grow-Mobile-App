@@ -902,7 +902,7 @@ Future<void> _deleteEssay(Map<String, dynamic> item, String? title) async {
         '• All task materials related to this task\n'
         '• All lesson material files\n'
         '• All question images (if any)\n'
-        '• All student attachments\n\n'
+        '• All student attachments (images, documents, etc.)\n\n'
         'This action cannot be undone.',
       ),
       actions: [
@@ -946,18 +946,19 @@ Future<void> _deleteEssay(Map<String, dynamic> item, String? title) async {
     }
 
     // ========== 1. GET ALL STORAGE FILES TO DELETE ==========
-    debugPrint('\n📸 [STORAGE] Getting all images for essay...');
+    debugPrint('\n📸 [STORAGE] Getting all files for essay...');
     
     List<String> storageFiles = [];
     if (essayId != null) {
+      // This will now include attached_files from student_essay_responses
       storageFiles = await TaskService.getEssayImages(essayId, assignmentId);
-      debugPrint('  Found ${storageFiles.length} images to delete');
+      debugPrint('  Found ${storageFiles.length} files to delete');
       for (final file in storageFiles) {
         debugPrint('    - $file');
       }
     }
 
-    // ========== NEW: Get lesson material file ==========
+    // ========== 2. GET LESSON MATERIAL FILE ==========
     debugPrint('\n📁 [STORAGE] Getting lesson material file...');
     if (taskId != null) {
       final taskMaterials = await supabase
@@ -979,16 +980,18 @@ Future<void> _deleteEssay(Map<String, dynamic> item, String? title) async {
       }
     }
 
-    // ========== 2. DELETE STORAGE FILES FIRST ==========
+    // ========== 3. DELETE STORAGE FILES FIRST ==========
     if (storageFiles.isNotEmpty) {
       debugPrint('\n🗑️ [STORAGE] Deleting ${storageFiles.length} files from storage...');
+      int deletedCount = 0;
       for (final fileUrl in storageFiles) {
-        await TaskService.deleteStorageFile(fileUrl);
+        final deleted = await TaskService.deleteStorageFile(fileUrl);
+        if (deleted) deletedCount++;
       }
-      debugPrint('✅ [STORAGE] All files deleted');
+      debugPrint('✅ [STORAGE] Deleted $deletedCount/${storageFiles.length} files');
     }
 
-    // ========== 3. GET ALL RELATED DATA ==========
+    // ========== 4. GET ALL RELATED DATA ==========
     debugPrint('\n📊 [DATABASE] Getting related records...');
 
     List<Map<String, dynamic>> essayQuestions = [];
@@ -1021,7 +1024,7 @@ Future<void> _deleteEssay(Map<String, dynamic> item, String? title) async {
       debugPrint('  Found ${taskMaterials.length} task materials');
     }
 
-    // ========== 4. DELETE DATABASE RECORDS ==========
+    // ========== 5. DELETE DATABASE RECORDS ==========
     debugPrint('\n🗑️ [DATABASE] Deleting records in order...');
 
     // a. Delete student essay responses
@@ -1133,7 +1136,10 @@ Future<void> _deleteQuiz(Map<String, dynamic> item, String? quizTitle) async {
         '• All quiz questions and options\n'
         '• All matching pairs\n'
         '• All student submissions and responses\n'
+        '• All student task progress\n'
+        '• All student recordings\n'
         '• All task materials related to this task\n'
+        '• The task itself\n'
         '• All lesson material files\n'
         '• All question images (stored in question_images/)\n'
         '• All option images (stored in option_images/)\n\n'
@@ -1203,7 +1209,7 @@ Future<void> _deleteQuiz(Map<String, dynamic> item, String? quizTitle) async {
       }
     }
 
-    // ========== NEW: Get lesson material file ==========
+    // ========== 2. GET LESSON MATERIAL FILE ==========
     debugPrint('\n📁 [STORAGE] Getting lesson material file...');
     if (taskId != null) {
       final taskMaterials = await supabase
@@ -1215,7 +1221,6 @@ Future<void> _deleteQuiz(Map<String, dynamic> item, String? quizTitle) async {
       if (taskMaterials != null) {
         final materialPath = taskMaterials['material_file_path'] as String?;
         if (materialPath != null && materialPath.isNotEmpty) {
-          // Get the public URL for the lesson material
           final materialUrl = supabase.storage
               .from('materials')
               .getPublicUrl(materialPath);
@@ -1225,7 +1230,7 @@ Future<void> _deleteQuiz(Map<String, dynamic> item, String? quizTitle) async {
       }
     }
 
-    // ========== 2. DELETE STORAGE FILES FIRST ==========
+    // ========== 3. DELETE STORAGE FILES FIRST ==========
     if (storageFiles.isNotEmpty) {
       debugPrint('\n🗑️ [STORAGE] Deleting ${storageFiles.length} files from storage...');
       for (final fileUrl in storageFiles) {
@@ -1234,7 +1239,7 @@ Future<void> _deleteQuiz(Map<String, dynamic> item, String? quizTitle) async {
       debugPrint('✅ [STORAGE] All files deleted');
     }
 
-    // ========== 3. GET ALL RELATED DATA FOR DELETION ==========
+    // ========== 4. GET ALL RELATED DATA FOR DELETION ==========
     debugPrint('\n📊 [DATABASE] Getting related records...');
 
     // Get all quiz questions for this quiz
@@ -1296,6 +1301,16 @@ Future<void> _deleteQuiz(Map<String, dynamic> item, String? quizTitle) async {
       debugPrint('  Found ${recordingIds.length} student recordings');
     }
 
+    // Get student task progress records for this task
+    List<Map<String, dynamic>> studentTaskProgress = [];
+    if (taskId != null) {
+      studentTaskProgress = await supabase
+          .from('student_task_progress')
+          .select('id')
+          .eq('task_id', taskId);
+      debugPrint('  Found ${studentTaskProgress.length} student task progress records');
+    }
+
     // Get task materials for this task
     List<Map<String, dynamic>> taskMaterials = [];
     if (taskId != null) {
@@ -1306,11 +1321,24 @@ Future<void> _deleteQuiz(Map<String, dynamic> item, String? quizTitle) async {
       debugPrint('  Found ${taskMaterials.length} task materials');
     }
 
+    // Get the task itself (for deletion at the end)
+    Map<String, dynamic>? task;
+    if (taskId != null) {
+      task = await supabase
+          .from('tasks')
+          .select('id, title')
+          .eq('id', taskId)
+          .maybeSingle();
+      if (task != null) {
+        debugPrint('  Found task to delete: ${task['title']}');
+      }
+    }
+
     debugPrint('\n🗑️ [DATABASE] Deleting records in correct order...');
 
-    // ========== 4. DELETE IN CORRECT ORDER ==========
+    // ========== 5. DELETE IN CORRECT ORDER (most dependent first) ==========
 
-    // a. Delete student recordings
+    // a. Delete student recordings (depend on quiz_questions)
     if (recordingIds.isNotEmpty) {
       debugPrint('  Deleting student recordings...');
       await supabase
@@ -1320,7 +1348,7 @@ Future<void> _deleteQuiz(Map<String, dynamic> item, String? quizTitle) async {
       debugPrint('  ✓ Deleted student recordings');
     }
 
-    // b. Delete student submissions
+    // b. Delete student submissions (depend on assignment)
     if (submissions.isNotEmpty) {
       debugPrint('  Deleting student submissions...');
       await supabase
@@ -1330,7 +1358,7 @@ Future<void> _deleteQuiz(Map<String, dynamic> item, String? quizTitle) async {
       debugPrint('  ✓ Deleted student submissions');
     }
 
-    // c. Delete matching pairs
+    // c. Delete matching pairs (depend on quiz_questions)
     if (matchingPairIds.isNotEmpty) {
       debugPrint('  Deleting matching pairs...');
       await supabase
@@ -1340,7 +1368,7 @@ Future<void> _deleteQuiz(Map<String, dynamic> item, String? quizTitle) async {
       debugPrint('  ✓ Deleted matching pairs');
     }
 
-    // d. Delete question options
+    // d. Delete question options (depend on quiz_questions)
     if (optionIds.isNotEmpty) {
       debugPrint('  Deleting question options...');
       await supabase
@@ -1350,7 +1378,7 @@ Future<void> _deleteQuiz(Map<String, dynamic> item, String? quizTitle) async {
       debugPrint('  ✓ Deleted question options');
     }
 
-    // e. Delete quiz questions
+    // e. Delete quiz questions (depend on quiz)
     if (questionIds.isNotEmpty) {
       debugPrint('  Deleting quiz questions...');
       await supabase
@@ -1360,21 +1388,38 @@ Future<void> _deleteQuiz(Map<String, dynamic> item, String? quizTitle) async {
       debugPrint('  ✓ Deleted quiz questions');
     }
 
-    // f. Delete task materials
+    // f. Delete student task progress (depend on task) - MUST BE BEFORE TASK
+    if (studentTaskProgress.isNotEmpty && taskId != null) {
+      debugPrint('  Deleting student task progress...');
+      await supabase
+          .from('student_task_progress')
+          .delete()
+          .eq('task_id', taskId);
+      debugPrint('  ✓ Deleted student task progress');
+    }
+
+    // g. Delete task materials (depend on task) - MUST BE BEFORE TASK
     if (taskMaterials.isNotEmpty && taskId != null) {
       debugPrint('  Deleting task materials...');
       await supabase.from('task_materials').delete().eq('task_id', taskId);
       debugPrint('  ✓ Deleted task materials');
     }
 
-    // g. Delete the quiz
+    // h. Delete the quiz (depend on assignment)
     if (quizId != null) {
       debugPrint('  Deleting quiz...');
       await supabase.from('quizzes').delete().eq('id', quizId);
       debugPrint('  ✓ Deleted quiz');
     }
 
-    // h. Finally, delete the assignment
+    // i. Delete the task (depend on nothing else now)
+    if (taskId != null && task != null) {
+      debugPrint('  Deleting task...');
+      await supabase.from('tasks').delete().eq('id', taskId);
+      debugPrint('  ✓ Deleted task: ${task['title']}');
+    }
+
+    // j. Finally, delete the assignment
     debugPrint('  Deleting assignment...');
     await supabase.from('assignments').delete().eq('id', assignmentId);
     debugPrint('  ✓ Deleted assignment');

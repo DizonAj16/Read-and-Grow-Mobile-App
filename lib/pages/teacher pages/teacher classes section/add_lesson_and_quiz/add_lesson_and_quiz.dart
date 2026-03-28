@@ -252,148 +252,157 @@ class _AddLessonWithQuizScreenState extends State<AddLessonWithQuizScreen> {
 
   // In AddLessonWithQuizScreen - Add these methods
 
-// Helper method to upload question image
-Future<String?> _uploadQuestionImage(Uint8List imageBytes, String fileName) async {
-  return await ApiService.uploadFile(
-    imageBytes,
-    fileName,
-    folder: 'question_images', // Organize in question_images folder
-  );
-}
-
-// Helper method to upload option image
-Future<String?> _uploadOptionImage(Uint8List imageBytes, String fileName) async {
-  return await ApiService.uploadFile(
-    imageBytes,
-    fileName,
-    folder: 'option_images', // Organize in option_images folder
-  );
-}
-
-// Helper method to upload lesson material
-Future<String?> _uploadLessonMaterial(Uint8List fileBytes, String fileName) async {
-  return await ApiService.uploadFile(
-    fileBytes,
-    fileName,
-    folder: 'lesson_materials', // Organize in lesson_materials folder
-  );
-}
-
-// In AddLessonWithQuizScreen - Update _pickFile method
-Future<void> _pickFile() async {
-  FilePickerResult? result = await FilePicker.platform.pickFiles(
-    type: FileType.custom,
-    allowedExtensions: ['pdf', 'mp4', 'mp3', 'wav', 'jpg', 'jpeg', 'png'],
-    withData: true,
-  );
-
-  if (result == null || result.files.single.bytes == null) return;
-
-  final pickedFile = result.files.single;
-  final bytes = pickedFile.bytes!;
-  final fileName = pickedFile.name;
-  final fileExtension = fileName.split('.').last.toLowerCase();
-
-  final validation = FileValidator.validateBytes(bytes);
-  if (!validation.isValid) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(validation.getUserMessage()),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-    return;
-  }
-
-  // Upload to lesson_materials folder
-  final uploadedUrl = await ApiService.uploadFile(
-    bytes,
-    fileName,
-    folder: 'lesson_materials',
-  );
-  
-  if (uploadedUrl == null) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to upload file. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-    return;
-  }
-
-  setState(() {
-    _uploadedFileUrl = uploadedUrl;
-    _uploadedFileBytes = bytes;
-    _uploadedFileName = fileName;
-    _uploadedFilePath = _extractStoragePath(uploadedUrl);
-    _uploadedFileExtension = fileExtension;
-    if (['jpg', 'jpeg', 'png'].contains(fileExtension)) {
-      _uploadedFileType = 'image';
-    } else if (fileExtension == 'pdf') {
-      _uploadedFileType = 'pdf';
-    } else if (fileExtension == 'mp4') {
-      _uploadedFileType = 'video';
-    } else {
-      _uploadedFileType = 'audio';
-    }
-  });
-}
-
-// In AddLessonWithQuizScreen - Update _pickImage method
-Future<String?> _pickImage({String? contextType}) async {
-  final picker = ImagePicker();
-  final pickedFile = await picker.pickImage(
-    source: ImageSource.gallery,
-    imageQuality: 80,
-  );
-  if (pickedFile == null) return null;
-
-  final bytes = await pickedFile.readAsBytes();
-
-  final validation = FileValidator.validateBytes(bytes);
-  if (!validation.isValid) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(validation.getUserMessage()),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-    return null;
-  }
-
-  // Determine folder based on context
-  String folder;
-  if (contextType == 'question') {
-    folder = 'question_images';
-  } else if (contextType == 'option') {
-    folder = 'option_images';
-  } else {
-    folder = 'question_images'; // default
-  }
-
-  final uploadedUrl = await ApiService.uploadFile(
-    bytes,
-    pickedFile.name,
-    folder: folder,
-  );
-  
-  if (uploadedUrl == null && mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Failed to upload image. Please try again.'),
-        backgroundColor: Colors.red,
-      ),
+  // Helper method to upload question image
+  Future<String?> _uploadQuestionImage(
+    Uint8List imageBytes,
+    String fileName,
+  ) async {
+    return await ApiService.uploadFile(
+      imageBytes,
+      fileName,
+      folder: 'question_images', // Organize in question_images folder
     );
   }
-  return uploadedUrl;
-}
+
+  // Helper method to upload option image
+  Future<String?> _uploadOptionImage(
+    Uint8List imageBytes,
+    String fileName,
+  ) async {
+    return await ApiService.uploadFile(
+      imageBytes,
+      fileName,
+      folder: 'option_images', // Organize in option_images folder
+    );
+  }
+
+  // Helper method to upload lesson material
+  Future<String?> _uploadLessonMaterial(
+    Uint8List fileBytes,
+    String fileName,
+  ) async {
+    return await ApiService.uploadFile(
+      fileBytes,
+      fileName,
+      folder: 'lesson_materials', // Organize in lesson_materials folder
+    );
+  }
+
+  // In AddLessonWithQuizScreen - Update _pickFile method
+  Future<void> _pickFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'mp4', 'mp3', 'wav', 'jpg', 'jpeg', 'png'],
+      withData: true,
+    );
+
+    if (result == null || result.files.single.bytes == null) return;
+
+    final pickedFile = result.files.single;
+    final bytes = pickedFile.bytes!;
+    final fileName = pickedFile.name;
+    final fileExtension = fileName.split('.').last.toLowerCase();
+
+    final validation = FileValidator.validateBytes(bytes);
+    if (!validation.isValid) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(validation.getUserMessage()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Upload to lesson_materials folder
+    final uploadedUrl = await ApiService.uploadFile(
+      bytes,
+      fileName,
+      folder: 'lesson_materials',
+    );
+
+    if (uploadedUrl == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to upload file. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _uploadedFileUrl = uploadedUrl;
+      _uploadedFileBytes = bytes;
+      _uploadedFileName = fileName;
+      _uploadedFilePath = _extractStoragePath(uploadedUrl);
+      _uploadedFileExtension = fileExtension;
+      if (['jpg', 'jpeg', 'png'].contains(fileExtension)) {
+        _uploadedFileType = 'image';
+      } else if (fileExtension == 'pdf') {
+        _uploadedFileType = 'pdf';
+      } else if (fileExtension == 'mp4') {
+        _uploadedFileType = 'video';
+      } else {
+        _uploadedFileType = 'audio';
+      }
+    });
+  }
+
+  // In AddLessonWithQuizScreen - Update _pickImage method
+  Future<String?> _pickImage({String? contextType}) async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+    if (pickedFile == null) return null;
+
+    final bytes = await pickedFile.readAsBytes();
+
+    final validation = FileValidator.validateBytes(bytes);
+    if (!validation.isValid) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(validation.getUserMessage()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return null;
+    }
+
+    // Determine folder based on context
+    String folder;
+    if (contextType == 'question') {
+      folder = 'question_images';
+    } else if (contextType == 'option') {
+      folder = 'option_images';
+    } else {
+      folder = 'question_images'; // default
+    }
+
+    final uploadedUrl = await ApiService.uploadFile(
+      bytes,
+      pickedFile.name,
+      folder: folder,
+    );
+
+    if (uploadedUrl == null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to upload image. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    return uploadedUrl;
+  }
 
   Widget _buildFilePreview() {
     final primaryColor = Theme.of(context).colorScheme.primary;
@@ -1248,7 +1257,7 @@ Future<String?> _pickImage({String? contextType}) async {
         const SizedBox(height: 8),
         GestureDetector(
           onTap: () async {
-          final imageUrl = await _pickImage(contextType: 'question');
+            final imageUrl = await _pickImage(contextType: 'question');
             if (imageUrl != null) {
               q.questionImageUrl = imageUrl;
               setState(() {});
@@ -1678,7 +1687,9 @@ Future<String?> _pickImage({String? contextType}) async {
                           children: [
                             GestureDetector(
                               onTap: () async {
-                          final imageUrl = await _pickImage(contextType: 'option');
+                                final imageUrl = await _pickImage(
+                                  contextType: 'option',
+                                );
                                 if (imageUrl != null) {
                                   setState(() {
                                     pair.rightItemUrl = imageUrl;
@@ -1831,7 +1842,9 @@ Future<String?> _pickImage({String? contextType}) async {
                       // Option image upload for multiple choice with images
                       GestureDetector(
                         onTap: () async {
-                        final imageUrl = await _pickImage(contextType: 'option');
+                          final imageUrl = await _pickImage(
+                            contextType: 'option',
+                          );
                           if (imageUrl != null) {
                             _setOptionImage(questionIndex, i, imageUrl);
                             _clearQuestionError(questionIndex, 'option_$i');
@@ -2070,13 +2083,24 @@ Future<String?> _pickImage({String? contextType}) async {
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addQuestion,
-        icon: const Icon(Icons.add_circle_outline),
-        label: const Text("Add Question"),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: ElevatedButton.icon(
+              onPressed: _addQuestion,
+              icon: const Icon(Icons.add_circle_outline),
+              label: const Text("Add Question"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryLight,
+                foregroundColor: primaryColor,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),

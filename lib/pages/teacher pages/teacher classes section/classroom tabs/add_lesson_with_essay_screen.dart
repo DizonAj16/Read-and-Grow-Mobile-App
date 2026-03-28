@@ -988,14 +988,26 @@ Widget _buildQuestionImageUpload(EssayQuestion q, int questionIndex) {
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
+                actions: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: ElevatedButton.icon(
+              onPressed: _addEssayQuestion,
+              icon: const Icon(Icons.add_circle_outline),
+              label: const Text("Add Question"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryLight,
+                foregroundColor: primaryColor,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addEssayQuestion,
-        icon: const Icon(Icons.add_circle_outline),
-        label: const Text("Add Essay Question"),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-      ),
+
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: ListView(
