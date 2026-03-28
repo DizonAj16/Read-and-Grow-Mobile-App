@@ -18,10 +18,12 @@ class ApiService {
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyY3lubWlpZHV3cnRsY3l6dnppIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzI0MTEzMiwiZXhwIjoyMDcyODE3MTMyfQ.2Bm8PCz6NS4uH4dRRSbcY9Ad7VLmCY7BitWSZjAjaB8',
   );
 // REPLACE the entire uploadFile method:
+// In api_service.dart - Update uploadFile method
 static Future<String?> uploadFile(
   Uint8List fileBytes,
-  String fileName,
-) async {
+  String fileName, {
+  String folder = 'files', // Add folder parameter with default
+}) async {
   try {
     // Validate size from bytes
     final validation = FileValidator.validateBytes(fileBytes);
@@ -33,8 +35,10 @@ static Future<String?> uploadFile(
       );
     }
 
-    final storageFileName =
-        'file_${DateTime.now().millisecondsSinceEpoch}_$fileName';
+    // Create folder structure
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final sanitizedName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+    final storageFileName = '$folder/${timestamp}_$sanitizedName';
 
     try {
       final response = await supabase.storage
@@ -54,7 +58,7 @@ static Future<String?> uploadFile(
         .from('materials')
         .getPublicUrl(storageFileName);
 
-    print('✅ Uploaded: $fileUrl');
+    print('✅ Uploaded to $folder: $fileUrl');
     return fileUrl;
   } catch (e) {
     if (e is FileSizeLimitException) rethrow;

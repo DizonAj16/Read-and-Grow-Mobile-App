@@ -880,398 +880,542 @@ Future<void> _editQuiz(Map<String, dynamic> item, String? quizTitle) async {
   }
 }
 
-  Future<void> _deleteEssay(Map<String, dynamic> item, String? title) async {
-    if (!mounted) return;
+Future<void> _deleteEssay(Map<String, dynamic> item, String? title) async {
+  if (!mounted) return;
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.warning, color: Colors.orange.shade700),
-            const SizedBox(width: 8),
-            const Text('Delete Essay Assignment'),
-          ],
-        ),
-        content: Text(
-          'Are you sure you want to delete "${title ?? 'this essay assignment'}"?\n\n'
-          'This will permanently delete:\n'
-          '• The essay assignment\n'
-          '• All essay questions\n'
-          '• All student submissions and responses\n'
-          '• All task materials related to this task\n\n'
-          'This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Delete'),
-          ),
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.warning, color: Colors.orange.shade700),
+          const SizedBox(width: 8),
+          const Text('Delete Essay Assignment'),
         ],
       ),
-    );
-
-    if (confirmed != true || !mounted) return;
-
-    // Show loading
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-
-    try {
-      // Get assignment ID from the item
-      final assignmentId = item['assignment_id'] as String?;
-      final essayId = item['id'] as String?;
-      final taskId = item['task_id'] as String?;
-
-      if (assignmentId == null) {
-        throw Exception('No assignment ID found for this essay');
-      }
-
-      debugPrint('\n=== COLLECTING ESSAY RELATED DATA FOR DELETION ===');
-      debugPrint('Assignment ID: $assignmentId');
-      debugPrint('Essay ID: $essayId');
-      debugPrint('Task ID: $taskId');
-
-      // 1. First, get all related data for deletion
-
-      // Get essay questions for this essay assignment
-      List<Map<String, dynamic>> essayQuestions = [];
-      if (essayId != null) {
-        essayQuestions = await supabase
-            .from('essay_questions')
-            .select('id')
-            .eq('essay_assignment_id', essayId);
-        debugPrint('Found ${essayQuestions.length} essay questions to delete');
-      }
-
-      // Get student essay responses for this assignment
-      final essayResponses = await supabase
-          .from('student_essay_responses')
-          .select('id')
-          .eq('assignment_id', assignmentId);
-      debugPrint(
-          'Found ${essayResponses.length} student essay responses to delete');
-
-      // Get student submissions for this assignment
-      final submissions = await supabase
-          .from('student_submissions')
-          .select('id')
-          .eq('assignment_id', assignmentId);
-      debugPrint('Found ${submissions.length} student submissions to delete');
-
-      // Get task materials for this task (if task exists)
-      List<Map<String, dynamic>> taskMaterials = [];
-      if (taskId != null) {
-        taskMaterials = await supabase
-            .from('task_materials')
-            .select('id')
-            .eq('task_id', taskId);
-        debugPrint('Found ${taskMaterials.length} task materials to delete');
-      }
-
-      debugPrint('=== STARTING ESSAY DELETION PROCESS ===\n');
-
-      // 2. Delete in reverse order
-
-      // a. Delete student essay responses
-      if (essayResponses.isNotEmpty) {
-        debugPrint('Deleting student essay responses...');
-        await supabase
-            .from('student_essay_responses')
-            .delete()
-            .eq('assignment_id', assignmentId);
-        debugPrint('✓ Deleted student essay responses');
-      }
-
-      // b. Delete essay questions
-      if (essayQuestions.isNotEmpty && essayId != null) {
-        debugPrint('Deleting essay questions...');
-        await supabase
-            .from('essay_questions')
-            .delete()
-            .eq('essay_assignment_id', essayId);
-        debugPrint('✓ Deleted essay questions');
-      }
-
-      // c. Delete student submissions
-      if (submissions.isNotEmpty) {
-        debugPrint('Deleting student submissions...');
-        await supabase
-            .from('student_submissions')
-            .delete()
-            .eq('assignment_id', assignmentId);
-        debugPrint('✓ Deleted student submissions');
-      }
-
-      // d. Delete task materials
-      if (taskMaterials.isNotEmpty && taskId != null) {
-        debugPrint('Deleting task materials...');
-        await supabase.from('task_materials').delete().eq('task_id', taskId);
-        debugPrint('✓ Deleted task materials');
-      }
-
-      // e. Delete essay assignment
-      if (essayId != null) {
-        debugPrint('Deleting essay assignment...');
-        await supabase.from('essay_assignments').delete().eq('id', essayId);
-        debugPrint('✓ Deleted essay assignment');
-      }
-
-      // f. Finally, delete the main assignment
-      debugPrint('Deleting main assignment...');
-      await supabase.from('assignments').delete().eq('id', assignmentId);
-      debugPrint('✓ Deleted main assignment');
-
-      debugPrint('\n=== ESSAY DELETION COMPLETE ===');
-
-      if (mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop(); // Close loading
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Essay assignment and all related data deleted successfully'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
-        _refreshTasks();
-      }
-    } catch (e) {
-      if (mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop(); // Close loading
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error deleting essay: $e'),
+      content: Text(
+        'Are you sure you want to delete "${title ?? 'this essay assignment'}"?\n\n'
+        'This will permanently delete:\n'
+        '• The essay assignment\n'
+        '• All essay questions\n'
+        '• All student submissions and responses\n'
+        '• All task materials related to this task\n'
+        '• All lesson material files\n'
+        '• All question images (if any)\n'
+        '• All student attachments\n\n'
+        'This action cannot be undone.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: ElevatedButton.styleFrom(
             backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
           ),
-        );
-      }
-      debugPrint('Error deleting essay: $e');
+          child: const Text('Delete'),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed != true || !mounted) return;
+
+  // Show loading
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => const Center(child: CircularProgressIndicator()),
+  );
+
+  try {
+    final assignmentId = item['assignment_id'] as String?;
+    final essayId = item['id'] as String?;
+    final taskId = item['task_id'] as String?;
+
+    debugPrint('\n=== DELETING ESSAY: $title ===');
+    debugPrint('  Assignment ID: $assignmentId');
+    debugPrint('  Essay ID: $essayId');
+    debugPrint('  Task ID: $taskId');
+
+    if (assignmentId == null) {
+      throw Exception('No assignment ID found for this essay');
     }
-  }
 
-  Future<void> _deleteQuiz(Map<String, dynamic> item, String? quizTitle) async {
-    if (!mounted) return;
-
-    final primaryColor = Theme.of(context).colorScheme.primary;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.warning, color: Colors.orange.shade700),
-            const SizedBox(width: 8),
-            const Text('Delete Quiz Assignment'),
-          ],
-        ),
-        content: Text(
-          'Are you sure you want to delete "${quizTitle ?? 'this quiz assignment'}"?\n\n'
-          'This will permanently delete:\n'
-          '• The quiz assignment\n'
-          '• All quiz questions and options\n'
-          '• All student submissions and responses\n'
-          '• All task materials related to this task\n\n'
-          'This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true || !mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) =>
-          Center(child: CircularProgressIndicator(color: primaryColor)),
-    );
-
-    try {
-      // Get assignment ID from the item
-      String? assignmentId = item['assignment_id'] as String?;
-      final quizId = item['id'] as String?;
-      final taskId = item['task_id'] as String?;
-
-      // Debug information
-      debugPrint('Deleting quiz with:');
-      debugPrint('  - Quiz ID: $quizId');
-      debugPrint('  - Assignment ID: $assignmentId');
-      debugPrint('  - Task ID: $taskId');
-
-      if (assignmentId == null && quizId != null) {
-        // Try to find assignment by quiz_id
-        debugPrint('Looking for assignment with quiz_id: $quizId');
-
-        final assignmentResponse = await supabase
-            .from('assignments')
-            .select('id')
-            .eq('quiz_id', quizId)
-            .eq('class_room_id', widget.classId)
-            .maybeSingle();
-
-        debugPrint('Found assignment response: $assignmentResponse');
-        assignmentId = assignmentResponse?['id'] as String?;
+    // ========== 1. GET ALL STORAGE FILES TO DELETE ==========
+    debugPrint('\n📸 [STORAGE] Getting all images for essay...');
+    
+    List<String> storageFiles = [];
+    if (essayId != null) {
+      storageFiles = await TaskService.getEssayImages(essayId, assignmentId);
+      debugPrint('  Found ${storageFiles.length} images to delete');
+      for (final file in storageFiles) {
+        debugPrint('    - $file');
       }
+    }
 
-      if (assignmentId == null) {
-        throw Exception('No assignment found for this quiz.');
-      }
-
-      // 1. First, get all related data for deletion
-      debugPrint('\n=== COLLECTING RELATED DATA FOR DELETION ===');
-
-      // Get all quiz questions for this quiz
-      final questions = await supabase
-          .from('quiz_questions')
-          .select('id')
-          .eq('quiz_id', quizId!);
-
-      final questionIds =
-          (questions as List).map<String>((q) => q['id'] as String).toList();
-      debugPrint('Found ${questionIds.length} questions to delete');
-
-      // Get all student submissions for this assignment
-      final submissions = await supabase
-          .from('student_submissions')
-          .select('id')
-          .eq('assignment_id', assignmentId);
-      debugPrint('Found ${submissions.length} student submissions to delete');
-
-      // Get task materials for this task (if task exists)
-      List<Map<String, dynamic>> taskMaterials = [];
-      if (taskId != null) {
-        taskMaterials = await supabase
-            .from('task_materials')
-            .select('id')
-            .eq('task_id', taskId);
-        debugPrint('Found ${taskMaterials.length} task materials to delete');
-      }
-
-      debugPrint('=== STARTING DELETION PROCESS ===\n');
-
-      // 2. Delete in reverse order to maintain referential integrity
-      // Start with the most dependent tables and work backwards
-
-      // a. Delete question options for each question
-      if (questionIds.isNotEmpty) {
-        debugPrint('Deleting question options...');
-        for (final questionId in questionIds) {
-          await supabase
-              .from('question_options')
-              .delete()
-              .eq('question_id', questionId);
+    // ========== NEW: Get lesson material file ==========
+    debugPrint('\n📁 [STORAGE] Getting lesson material file...');
+    if (taskId != null) {
+      final taskMaterials = await supabase
+          .from('task_materials')
+          .select('material_file_path')
+          .eq('task_id', taskId)
+          .maybeSingle();
+      
+      if (taskMaterials != null) {
+        final materialPath = taskMaterials['material_file_path'] as String?;
+        if (materialPath != null && materialPath.isNotEmpty) {
+          // Get the public URL for the lesson material
+          final materialUrl = supabase.storage
+              .from('materials')
+              .getPublicUrl(materialPath);
+          storageFiles.add(materialUrl);
+          debugPrint('📁 Found lesson material: $materialUrl');
         }
-        debugPrint('✓ Deleted question options');
       }
-
-      // b. Delete quiz questions
-      if (quizId != null) {
-        debugPrint('Deleting quiz questions...');
-        await supabase.from('quiz_questions').delete().eq('quiz_id', quizId);
-        debugPrint('✓ Deleted quiz questions');
-      }
-
-      // c. Delete student submissions
-      if (submissions.isNotEmpty) {
-        debugPrint('Deleting student submissions...');
-        await supabase
-            .from('student_submissions')
-            .delete()
-            .eq('assignment_id', assignmentId);
-        debugPrint('✓ Deleted student submissions');
-      }
-
-      // d. Delete task materials
-      if (taskMaterials.isNotEmpty && taskId != null) {
-        debugPrint('Deleting task materials...');
-        await supabase.from('task_materials').delete().eq('task_id', taskId);
-        debugPrint('✓ Deleted task materials');
-      }
-
-      // e. Delete the quiz
-      if (quizId != null) {
-        debugPrint('Deleting quiz...');
-        await supabase.from('quizzes').delete().eq('id', quizId);
-        debugPrint('✓ Deleted quiz');
-      }
-
-      // f. Finally, delete the assignment
-      debugPrint('Deleting assignment...');
-      await supabase.from('assignments').delete().eq('id', assignmentId);
-      debugPrint('✓ Deleted assignment');
-
-      debugPrint('\n=== DELETION COMPLETE ===');
-
-      if (mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Quiz assignment and all related data deleted successfully'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
-        _refreshTasks();
-      }
-    } catch (e) {
-      if (mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error deleting quiz: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      debugPrint('Error deleting quiz: $e');
     }
+
+    // ========== 2. DELETE STORAGE FILES FIRST ==========
+    if (storageFiles.isNotEmpty) {
+      debugPrint('\n🗑️ [STORAGE] Deleting ${storageFiles.length} files from storage...');
+      for (final fileUrl in storageFiles) {
+        await TaskService.deleteStorageFile(fileUrl);
+      }
+      debugPrint('✅ [STORAGE] All files deleted');
+    }
+
+    // ========== 3. GET ALL RELATED DATA ==========
+    debugPrint('\n📊 [DATABASE] Getting related records...');
+
+    List<Map<String, dynamic>> essayQuestions = [];
+    if (essayId != null) {
+      essayQuestions = await supabase
+          .from('essay_questions')
+          .select('id')
+          .eq('essay_assignment_id', essayId);
+      debugPrint('  Found ${essayQuestions.length} essay questions');
+    }
+
+    final essayResponses = await supabase
+        .from('student_essay_responses')
+        .select('id')
+        .eq('assignment_id', assignmentId);
+    debugPrint('  Found ${essayResponses.length} student essay responses');
+
+    final submissions = await supabase
+        .from('student_submissions')
+        .select('id')
+        .eq('assignment_id', assignmentId);
+    debugPrint('  Found ${submissions.length} student submissions');
+
+    List<Map<String, dynamic>> taskMaterials = [];
+    if (taskId != null) {
+      taskMaterials = await supabase
+          .from('task_materials')
+          .select('id')
+          .eq('task_id', taskId);
+      debugPrint('  Found ${taskMaterials.length} task materials');
+    }
+
+    // ========== 4. DELETE DATABASE RECORDS ==========
+    debugPrint('\n🗑️ [DATABASE] Deleting records in order...');
+
+    // a. Delete student essay responses
+    if (essayResponses.isNotEmpty) {
+      debugPrint('  Deleting student essay responses...');
+      await supabase
+          .from('student_essay_responses')
+          .delete()
+          .eq('assignment_id', assignmentId);
+      debugPrint('  ✓ Deleted student essay responses');
+    }
+
+    // b. Delete essay questions
+    if (essayQuestions.isNotEmpty && essayId != null) {
+      debugPrint('  Deleting essay questions...');
+      await supabase
+          .from('essay_questions')
+          .delete()
+          .eq('essay_assignment_id', essayId);
+      debugPrint('  ✓ Deleted essay questions');
+    }
+
+    // c. Delete student submissions
+    if (submissions.isNotEmpty) {
+      debugPrint('  Deleting student submissions...');
+      await supabase
+          .from('student_submissions')
+          .delete()
+          .eq('assignment_id', assignmentId);
+      debugPrint('  ✓ Deleted student submissions');
+    }
+
+    // d. Delete task materials
+    if (taskMaterials.isNotEmpty && taskId != null) {
+      debugPrint('  Deleting task materials...');
+      await supabase.from('task_materials').delete().eq('task_id', taskId);
+      debugPrint('  ✓ Deleted task materials');
+    }
+
+    // e. Delete essay assignment
+    if (essayId != null) {
+      debugPrint('  Deleting essay assignment...');
+      await supabase.from('essay_assignments').delete().eq('id', essayId);
+      debugPrint('  ✓ Deleted essay assignment');
+    }
+
+    // f. Finally, delete the main assignment
+    debugPrint('  Deleting main assignment...');
+    await supabase.from('assignments').delete().eq('id', assignmentId);
+    debugPrint('  ✓ Deleted main assignment');
+
+    debugPrint('\n✅ ESSAY DELETION COMPLETE');
+
+    if (mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Essay assignment and all related data deleted successfully'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      _refreshTasks();
+    }
+  } catch (e) {
+    if (mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error deleting essay: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    debugPrint('❌ Error deleting essay: $e');
   }
+}
+
+Future<void> _deleteQuiz(Map<String, dynamic> item, String? quizTitle) async {
+  if (!mounted) return;
+
+  final primaryColor = Theme.of(context).colorScheme.primary;
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.warning, color: Colors.orange.shade700),
+          const SizedBox(width: 8),
+          const Text('Delete Quiz Assignment'),
+        ],
+      ),
+      content: Text(
+        'Are you sure you want to delete "${quizTitle ?? 'this quiz assignment'}"?\n\n'
+        'This will permanently delete:\n'
+        '• The quiz assignment\n'
+        '• All quiz questions and options\n'
+        '• All matching pairs\n'
+        '• All student submissions and responses\n'
+        '• All task materials related to this task\n'
+        '• All lesson material files\n'
+        '• All question images (stored in question_images/)\n'
+        '• All option images (stored in option_images/)\n\n'
+        'This action cannot be undone.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Delete'),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed != true || !mounted) return;
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) =>
+        Center(child: CircularProgressIndicator(color: primaryColor)),
+  );
+
+  try {
+    // Get assignment ID from the item
+    String? assignmentId = item['assignment_id'] as String?;
+    final quizId = item['id'] as String?;
+    final taskId = item['task_id'] as String?;
+
+    debugPrint('\n=== DELETING QUIZ: $quizTitle ===');
+    debugPrint('  Quiz ID: $quizId');
+    debugPrint('  Assignment ID: $assignmentId');
+    debugPrint('  Task ID: $taskId');
+
+    if (assignmentId == null && quizId != null) {
+      final assignmentResponse = await supabase
+          .from('assignments')
+          .select('id')
+          .eq('quiz_id', quizId)
+          .eq('class_room_id', widget.classId)
+          .maybeSingle();
+
+      assignmentId = assignmentResponse?['id'] as String?;
+    }
+
+    if (assignmentId == null) {
+      throw Exception('No assignment found for this quiz.');
+    }
+
+    // ========== 1. GET ALL STORAGE FILES TO DELETE ==========
+    debugPrint('\n📸 [STORAGE] Getting all images for quiz...');
+    
+    List<String> storageFiles = [];
+    if (quizId != null) {
+      storageFiles = await TaskService.getQuizImages(quizId);
+      debugPrint('  Found ${storageFiles.length} images to delete');
+      for (final file in storageFiles) {
+        debugPrint('    - $file');
+      }
+    }
+
+    // ========== NEW: Get lesson material file ==========
+    debugPrint('\n📁 [STORAGE] Getting lesson material file...');
+    if (taskId != null) {
+      final taskMaterials = await supabase
+          .from('task_materials')
+          .select('material_file_path')
+          .eq('task_id', taskId)
+          .maybeSingle();
+      
+      if (taskMaterials != null) {
+        final materialPath = taskMaterials['material_file_path'] as String?;
+        if (materialPath != null && materialPath.isNotEmpty) {
+          // Get the public URL for the lesson material
+          final materialUrl = supabase.storage
+              .from('materials')
+              .getPublicUrl(materialPath);
+          storageFiles.add(materialUrl);
+          debugPrint('📁 Found lesson material: $materialUrl');
+        }
+      }
+    }
+
+    // ========== 2. DELETE STORAGE FILES FIRST ==========
+    if (storageFiles.isNotEmpty) {
+      debugPrint('\n🗑️ [STORAGE] Deleting ${storageFiles.length} files from storage...');
+      for (final fileUrl in storageFiles) {
+        await TaskService.deleteStorageFile(fileUrl);
+      }
+      debugPrint('✅ [STORAGE] All files deleted');
+    }
+
+    // ========== 3. GET ALL RELATED DATA FOR DELETION ==========
+    debugPrint('\n📊 [DATABASE] Getting related records...');
+
+    // Get all quiz questions for this quiz
+    final questions = await supabase
+        .from('quiz_questions')
+        .select('id')
+        .eq('quiz_id', quizId!);
+
+    final questionIds =
+        (questions as List).map<String>((q) => q['id'] as String).toList();
+    debugPrint('  Found ${questionIds.length} questions');
+
+    // Get matching pairs for each question
+    List<String> matchingPairIds = [];
+    if (questionIds.isNotEmpty) {
+      final matchingPairs = await supabase
+          .from('matching_pairs')
+          .select('id')
+          .inFilter('question_id', questionIds);
+      
+      matchingPairIds = (matchingPairs as List)
+          .map<String>((p) => p['id'] as String)
+          .toList();
+      debugPrint('  Found ${matchingPairIds.length} matching pairs');
+    }
+
+    // Get question options
+    List<String> optionIds = [];
+    if (questionIds.isNotEmpty) {
+      final options = await supabase
+          .from('question_options')
+          .select('id')
+          .inFilter('question_id', questionIds);
+      
+      optionIds = (options as List)
+          .map<String>((o) => o['id'] as String)
+          .toList();
+      debugPrint('  Found ${optionIds.length} question options');
+    }
+
+    // Get all student submissions for this assignment
+    final submissions = await supabase
+        .from('student_submissions')
+        .select('id')
+        .eq('assignment_id', assignmentId);
+    debugPrint('  Found ${submissions.length} student submissions');
+
+    // Get student recordings for these questions
+    List<String> recordingIds = [];
+    if (questionIds.isNotEmpty) {
+      final recordings = await supabase
+          .from('student_recordings')
+          .select('id')
+          .inFilter('quiz_question_id', questionIds);
+      
+      recordingIds = (recordings as List)
+          .map<String>((r) => r['id'] as String)
+          .toList();
+      debugPrint('  Found ${recordingIds.length} student recordings');
+    }
+
+    // Get task materials for this task
+    List<Map<String, dynamic>> taskMaterials = [];
+    if (taskId != null) {
+      taskMaterials = await supabase
+          .from('task_materials')
+          .select('id')
+          .eq('task_id', taskId);
+      debugPrint('  Found ${taskMaterials.length} task materials');
+    }
+
+    debugPrint('\n🗑️ [DATABASE] Deleting records in correct order...');
+
+    // ========== 4. DELETE IN CORRECT ORDER ==========
+
+    // a. Delete student recordings
+    if (recordingIds.isNotEmpty) {
+      debugPrint('  Deleting student recordings...');
+      await supabase
+          .from('student_recordings')
+          .delete()
+          .inFilter('id', recordingIds);
+      debugPrint('  ✓ Deleted student recordings');
+    }
+
+    // b. Delete student submissions
+    if (submissions.isNotEmpty) {
+      debugPrint('  Deleting student submissions...');
+      await supabase
+          .from('student_submissions')
+          .delete()
+          .eq('assignment_id', assignmentId);
+      debugPrint('  ✓ Deleted student submissions');
+    }
+
+    // c. Delete matching pairs
+    if (matchingPairIds.isNotEmpty) {
+      debugPrint('  Deleting matching pairs...');
+      await supabase
+          .from('matching_pairs')
+          .delete()
+          .inFilter('id', matchingPairIds);
+      debugPrint('  ✓ Deleted matching pairs');
+    }
+
+    // d. Delete question options
+    if (optionIds.isNotEmpty) {
+      debugPrint('  Deleting question options...');
+      await supabase
+          .from('question_options')
+          .delete()
+          .inFilter('id', optionIds);
+      debugPrint('  ✓ Deleted question options');
+    }
+
+    // e. Delete quiz questions
+    if (questionIds.isNotEmpty) {
+      debugPrint('  Deleting quiz questions...');
+      await supabase
+          .from('quiz_questions')
+          .delete()
+          .eq('quiz_id', quizId);
+      debugPrint('  ✓ Deleted quiz questions');
+    }
+
+    // f. Delete task materials
+    if (taskMaterials.isNotEmpty && taskId != null) {
+      debugPrint('  Deleting task materials...');
+      await supabase.from('task_materials').delete().eq('task_id', taskId);
+      debugPrint('  ✓ Deleted task materials');
+    }
+
+    // g. Delete the quiz
+    if (quizId != null) {
+      debugPrint('  Deleting quiz...');
+      await supabase.from('quizzes').delete().eq('id', quizId);
+      debugPrint('  ✓ Deleted quiz');
+    }
+
+    // h. Finally, delete the assignment
+    debugPrint('  Deleting assignment...');
+    await supabase.from('assignments').delete().eq('id', assignmentId);
+    debugPrint('  ✓ Deleted assignment');
+
+    debugPrint('\n✅ QUIZ DELETION COMPLETE');
+
+    if (mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Quiz assignment and all related data deleted successfully'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      _refreshTasks();
+    }
+  } catch (e) {
+    if (mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error deleting quiz: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    debugPrint('❌ Error deleting quiz: $e');
+  }
+}
 }
 
 // Enums for task types and sort order

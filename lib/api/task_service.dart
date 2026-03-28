@@ -198,4 +198,162 @@ static Future<Map<String, dynamic>?> fetchQuizWithQuestions(
     return null;
   }
 }
+
+// Add to TaskService class
+
+/// Delete a file from storage
+static Future<bool> deleteStorageFile(String fileUrl) async {
+  try {
+    final supabase = Supabase.instance.client;
+    
+    if (fileUrl.isEmpty) return true;
+    
+    // Extract storage path
+    final storagePath = _extractStoragePath(fileUrl);
+    if (storagePath == null) {
+      debugPrint('⚠️ [STORAGE] Could not extract path from: $fileUrl');
+      return false;
+    }
+    
+    debugPrint('🗑️ [STORAGE] Deleting: $storagePath');
+    
+    // Always use 'materials' bucket
+    await supabase.storage.from('materials').remove([storagePath]);
+    debugPrint('✅ [STORAGE] Deleted: $storagePath');
+    return true;
+  } catch (e) {
+    debugPrint('❌ [STORAGE] Error deleting file: $e');
+    return false;
+  }
+}
+
+/// Extract storage path from Supabase URL
+static String? _extractStoragePath(String url) {
+  try {
+    final uri = Uri.parse(url);
+    final pathSegments = uri.pathSegments;
+    
+    // Find bucket name in path (materials, document, etc.)
+    final bucketIndex = pathSegments.indexOf('materials');
+    if (bucketIndex >= 0 && bucketIndex + 1 < pathSegments.length) {
+      return pathSegments.sublist(bucketIndex + 1).join('/');
+    }
+    
+    // Fallback: split by bucket name
+    if (url.contains('materials/')) {
+      final parts = url.split('materials/');
+      if (parts.length > 1) return parts[1];
+    }
+    
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/// Get all images associated with a quiz (both question and option images)
+/// Get all images associated with a quiz (both question, option images, and matching pair images)
+static Future<List<String>> getQuizImages(String quizId) async {
+  final supabase = Supabase.instance.client;
+  final images = <String>[];
+  
+  try {
+    // Get all questions for this quiz
+    final questions = await supabase
+        .from('quiz_questions')
+        .select('id, question_image_url, option_images')
+        .eq('quiz_id', quizId);
+    
+    for (final question in questions) {
+      final questionId = question['id'] as String;
+      
+      // Add question image (stored in question_images folder)
+      final questionImage = question['question_image_url'] as String?;
+      if (questionImage != null && questionImage.isNotEmpty) {
+        images.add(questionImage);
+        debugPrint('📸 Found question image: $questionImage');
+      }
+      
+      // Add option images (stored in option_images folder)
+      final optionImages = question['option_images'];
+      if (optionImages != null) {
+        if (optionImages is Map) {
+          optionImages.forEach((key, value) {
+            if (value != null && value.toString().isNotEmpty) {
+              images.add(value.toString());
+              debugPrint('📸 Found option image for key $key: $value');
+            }
+          });
+        } else if (optionImages is String && optionImages.isNotEmpty) {
+          try {
+            final decoded = json.decode(optionImages) as Map;
+            decoded.forEach((key, value) {
+              if (value != null && value.toString().isNotEmpty) {
+                images.add(value.toString());
+                debugPrint('📸 Found option image from JSON: $value');
+              }
+            });
+          } catch (e) {
+            debugPrint('⚠️ Error parsing option_images JSON: $e');
+          }
+        }
+      }
+      
+      // ========== NEW: Get matching pair images for this question ==========
+      final matchingPairs = await supabase
+          .from('matching_pairs')
+          .select('right_item_url')
+          .eq('question_id', questionId);
+      
+      for (final pair in matchingPairs) {
+        final rightItemUrl = pair['right_item_url'] as String?;
+        if (rightItemUrl != null && rightItemUrl.isNotEmpty) {
+          images.add(rightItemUrl);
+          debugPrint('📸 Found matching pair image: $rightItemUrl');
+        }
+      }
+    }
+    
+    // Remove duplicates
+    final uniqueImages = images.toSet().toList();
+    debugPrint('📸 Total unique images found: ${uniqueImages.length}');
+    
+    return uniqueImages;
+  } catch (e) {
+    debugPrint('❌ Error getting quiz images: $e');
+    return [];
+  }
+}
+
+/// Get all images associated with an essay assignment
+/// Get all images associated with an essay assignment (only question images for now)
+static Future<List<String>> getEssayImages(String essayId, String assignmentId) async {
+  final supabase = Supabase.instance.client;
+  final images = <String>[];
+  
+  try {
+    // Get essay questions that have images
+    final essayQuestions = await supabase
+        .from('essay_questions')
+        .select('question_image_url')
+        .eq('essay_assignment_id', essayId);
+    
+    for (final question in essayQuestions) {
+      final questionImage = question['question_image_url'] as String?;
+      if (questionImage != null && questionImage.isNotEmpty) {
+        images.add(questionImage);
+        debugPrint('📸 Found essay question image: $questionImage');
+      }
+    }
+    
+    // Student attachments will be implemented later - skipping for now
+    debugPrint('📸 Total essay images found: ${images.length}');
+    return images;
+  } catch (e) {
+    debugPrint('❌ Error getting essay images: $e');
+    return [];
+  }
+}
+
+
 }

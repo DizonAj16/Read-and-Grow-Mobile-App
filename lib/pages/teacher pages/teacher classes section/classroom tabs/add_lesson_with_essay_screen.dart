@@ -66,6 +66,8 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
     setState(() {});
   }
 
+  
+
   void _deleteEssayQuestion(int index) {
     showDialog(
       context: context,
@@ -103,100 +105,131 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
           ),
     );
   }
+// Add these helper methods at the top of _AddLessonWithEssayScreenState
 
-  Future<void> _pickFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'mp4', 'mp3', 'wav', 'jpg', 'jpeg', 'png'],
-      withData: true, // ← required for web
-    );
+/// Helper method to upload essay question image
+Future<String?> _uploadEssayQuestionImage(Uint8List imageBytes, String fileName) async {
+  return await ApiService.uploadFile(
+    imageBytes,
+    fileName,
+    folder: 'essay_question_images', // Organize in essay_question_images folder
+  );
+}
 
-    if (result == null || result.files.single.bytes == null) return;
+/// Helper method to upload lesson material
+Future<String?> _uploadLessonMaterial(Uint8List fileBytes, String fileName) async {
+  return await ApiService.uploadFile(
+    fileBytes,
+    fileName,
+    folder: 'lesson_materials', // Organize in lesson_materials folder
+  );
+}
+Future<void> _pickFile() async {
+  FilePickerResult? result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['pdf', 'mp4', 'mp3', 'wav', 'jpg', 'jpeg', 'png'],
+    withData: true, // required for web
+  );
 
-    final pickedFile = result.files.single;
-    final bytes = pickedFile.bytes!;
-    final fileName = pickedFile.name;
-    final fileExtension = fileName.split('.').last.toLowerCase();
+  if (result == null || result.files.single.bytes == null) return;
 
-    // Validate from bytes — web-safe
-    final validation = FileValidator.validateBytes(bytes);
-    if (!validation.isValid) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(validation.getUserMessage()),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
+  final pickedFile = result.files.single;
+  final bytes = pickedFile.bytes!;
+  final fileName = pickedFile.name;
+  final fileExtension = fileName.split('.').last.toLowerCase();
 
-    final uploadedUrl = await ApiService.uploadFile(bytes, fileName);
-    if (uploadedUrl == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to upload file. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
-
-    setState(() {
-      _uploadedFileUrl = uploadedUrl;
-      _uploadedFileBytes = bytes;
-      _uploadedFileName = fileName;
-      _uploadedFilePath = _extractStoragePath(uploadedUrl);
-      _uploadedFileExtension = fileExtension;
-      if (['jpg', 'jpeg', 'png'].contains(fileExtension)) {
-        _uploadedFileType = 'image';
-      } else if (fileExtension == 'pdf') {
-        _uploadedFileType = 'pdf';
-      } else if (fileExtension == 'mp4') {
-        _uploadedFileType = 'video';
-      } else {
-        _uploadedFileType = 'audio';
-      }
-    });
-  }
-
-  Future<String?> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
-    if (pickedFile == null) return null;
-
-    final bytes = await pickedFile.readAsBytes();
-
-    final validation = FileValidator.validateBytes(bytes);
-    if (!validation.isValid) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(validation.getUserMessage()),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return null;
-    }
-
-    final uploadedUrl = await ApiService.uploadFile(bytes, pickedFile.name);
-    if (uploadedUrl == null && mounted) {
+  final validation = FileValidator.validateBytes(bytes);
+  if (!validation.isValid) {
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to upload image. Please try again.'),
+        SnackBar(
+          content: Text(validation.getUserMessage()),
           backgroundColor: Colors.red,
         ),
       );
     }
-    return uploadedUrl;
+    return;
   }
+
+  // Upload to lesson_materials folder
+  final uploadedUrl = await _uploadLessonMaterial(bytes, fileName);
+  if (uploadedUrl == null) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to upload file. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    return;
+  }
+
+  setState(() {
+    _uploadedFileUrl = uploadedUrl;
+    _uploadedFileBytes = bytes;
+    _uploadedFileName = fileName;
+    _uploadedFilePath = _extractStoragePath(uploadedUrl);
+    _uploadedFileExtension = fileExtension;
+    if (['jpg', 'jpeg', 'png'].contains(fileExtension)) {
+      _uploadedFileType = 'image';
+    } else if (fileExtension == 'pdf') {
+      _uploadedFileType = 'pdf';
+    } else if (fileExtension == 'mp4') {
+      _uploadedFileType = 'video';
+    } else {
+      _uploadedFileType = 'audio';
+    }
+  });
+}
+
+Future<String?> _pickImage({String? contextType}) async {
+  final picker = ImagePicker();
+  final pickedFile = await picker.pickImage(
+    source: ImageSource.gallery,
+    imageQuality: 80,
+  );
+  if (pickedFile == null) return null;
+
+  final bytes = await pickedFile.readAsBytes();
+
+  final validation = FileValidator.validateBytes(bytes);
+  if (!validation.isValid) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(validation.getUserMessage()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    return null;
+  }
+
+  // Determine folder based on context
+  String folder;
+  if (contextType == 'essay_question') {
+    folder = 'essay_question_images';
+  } else {
+    folder = 'essay_question_images'; // default for essay
+  }
+
+  final uploadedUrl = await ApiService.uploadFile(
+    bytes,
+    pickedFile.name,
+    folder: folder,
+  );
+  
+  if (uploadedUrl == null && mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Failed to upload image. Please try again.'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+  return uploadedUrl;
+}
 
   Widget _buildFilePreview() {
     final primaryColor = Theme.of(context).colorScheme.primary;
@@ -853,92 +886,93 @@ class _AddLessonWithEssayScreenState extends State<AddLessonWithEssayScreen> {
     );
   }
 
-  Widget _buildQuestionImageUpload(EssayQuestion q, int questionIndex) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Question Image (Optional, but recommended):',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[700],
-          ),
+Widget _buildQuestionImageUpload(EssayQuestion q, int questionIndex) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Question Image (Optional, but recommended):',
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          color: Colors.grey[700],
         ),
-        const SizedBox(height: 8),
-        GestureDetector(
-          onTap: () async {
-            final imageUrl = await _pickImage();
-            if (imageUrl != null) {
-              q.questionImageUrl = imageUrl;
-              setState(() {});
-            }
-          },
-          child: Container(
-            height: 150,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey[300]!),
-              borderRadius: BorderRadius.circular(8),
-              color: Colors.grey[50],
-            ),
-            child:
-                (q.questionImageUrl ?? '').isEmpty
-                    ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.add_photo_alternate, color: Colors.grey),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Tap to add image prompt (optional)',
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            'Students will see this image above the essay prompt',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                    : Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            q.questionImageUrl!,
-                            fit: BoxFit.contain,
-                            width: double.infinity,
-                            height: double.infinity,
-                          ),
-                        ),
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: CircleAvatar(
-                            radius: 16,
-                            backgroundColor: Colors.black54,
-                            child: IconButton(
-                              icon: const Icon(Icons.delete, size: 16),
-                              color: Colors.white,
-                              onPressed: () {
-                                setState(() {
-                                  q.questionImageUrl = null;
-                                });
-                              },
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+      ),
+      const SizedBox(height: 8),
+      GestureDetector(
+        onTap: () async {
+          // Use context 'essay_question' for essay question images
+          final imageUrl = await _pickImage(contextType: 'essay_question');
+          if (imageUrl != null) {
+            q.questionImageUrl = imageUrl;
+            setState(() {});
+          }
+        },
+        child: Container(
+          height: 150,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.grey[50],
           ),
+          child:
+              (q.questionImageUrl ?? '').isEmpty
+                  ? Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add_photo_alternate, color: Colors.grey),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Tap to add image prompt (optional)',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Students will see this image above the essay prompt',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                  : Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          q.questionImageUrl!,
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                          height: double.infinity,
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: CircleAvatar(
+                          radius: 16,
+                          backgroundColor: Colors.black54,
+                          child: IconButton(
+                            icon: const Icon(Icons.delete, size: 16),
+                            color: Colors.white,
+                            onPressed: () {
+                              setState(() {
+                                q.questionImageUrl = null;
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
 
   @override
   Widget build(BuildContext context) {

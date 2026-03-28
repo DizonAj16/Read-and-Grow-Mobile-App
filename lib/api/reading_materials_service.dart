@@ -997,143 +997,191 @@ static Future<Map<String, dynamic>?> uploadReadingMaterial({
     }
   }
 
-  static Future<bool> deleteReadingMaterial(String materialId) async {
-    try {
-      debugPrint('📚 [READING_MATERIAL] Deleting material: $materialId');
+/// Delete a reading material and all associated files from storage
+static Future<bool> deleteReadingMaterial(String materialId) async {
+  try {
+    debugPrint('📚 [READING_MATERIAL] Deleting material: $materialId');
 
-      // Get material to find file URL and title for syncing deletion
-      final material =
-          await supabase
-              .from('reading_materials')
-              .select(
-                'file_url, audio_url, title, level_id, class_room_id, prerequisite_id',
-              )
-              .eq('id', materialId)
-              .maybeSingle();
+    // Get material details first
+    final material = await supabase
+        .from('reading_materials')
+        .select('file_url, audio_url, title, level_id, class_room_id, prerequisite_id')
+        .eq('id', materialId)
+        .maybeSingle();
 
-      String? filePath;
-      String? audioPath;
-
-      if (material != null) {
-        final fileUrl = material['file_url'] as String?;
-        final audioUrl = material['audio_url'] as String?; // NEW
-
-        // Delete main file
-        if (fileUrl != null && fileUrl.contains('materials/')) {
-          try {
-            final uri = Uri.parse(fileUrl);
-            final pathSegments = uri.pathSegments;
-            final materialIndex = pathSegments.indexOf('materials');
-            if (materialIndex >= 0 && materialIndex < pathSegments.length - 1) {
-              filePath = pathSegments.sublist(materialIndex + 1).join('/');
-              await supabase.storage.from('materials').remove([filePath]);
-              debugPrint('✅ [READING_MATERIAL] File deleted from storage');
-            }
-          } catch (e) {
-            debugPrint(
-              '⚠️ [READING_MATERIAL] Failed to delete file from storage: $e',
-            );
-          }
-        }
-
-        // Delete audio file if exists
-        if (audioUrl != null &&
-            audioUrl.isNotEmpty &&
-            audioUrl.contains('materials/')) {
-          try {
-            final audioUri = Uri.parse(audioUrl);
-            final audioPathSegments = audioUri.pathSegments;
-            final audioMaterialIndex = audioPathSegments.indexOf('materials');
-            if (audioMaterialIndex >= 0 &&
-                audioMaterialIndex < audioPathSegments.length - 1) {
-              audioPath = audioPathSegments
-                  .sublist(audioMaterialIndex + 1)
-                  .join('/');
-              await supabase.storage.from('materials').remove([audioPath]);
-              debugPrint(
-                '✅ [READING_MATERIAL] Audio file deleted from storage',
-              );
-            }
-          } catch (e) {
-            debugPrint(
-              '⚠️ [READING_MATERIAL] Failed to delete audio file from storage: $e',
-            );
-          }
-        }
-      }
-
-      // NEW: Step 1 - Delete all student recordings for this material first
-      try {
-        debugPrint(
-          '🗑️ [READING_MATERIAL] Deleting related student recordings...',
-        );
-        await supabase
-            .from('student_recordings')
-            .delete()
-            .eq('material_id', materialId);
-        debugPrint(
-          '✅ [READING_MATERIAL] Deleted all student recordings for material: $materialId',
-        );
-      } catch (e) {
-        debugPrint(
-          '⚠️ [READING_MATERIAL] Failed to delete student recordings: $e',
-        );
-      }
-
-      // NEW: Step 2 - Delete all classroom assignments from junction table
-      try {
-        debugPrint('🗑️ [READING_MATERIAL] Deleting classroom assignments...');
-        await supabase
-            .from('classroom_reading_materials')
-            .delete()
-            .eq('reading_material_id', materialId);
-        debugPrint(
-          '✅ [READING_MATERIAL] Deleted all classroom assignments for material: $materialId',
-        );
-      } catch (e) {
-        debugPrint(
-          '⚠️ [READING_MATERIAL] Failed to delete classroom assignments: $e',
-        );
-      }
-
-      // NEW: Step 3 - Find and update any materials that have this material as their prerequisite
-      if (materialId.isNotEmpty) {
-        try {
-          debugPrint('🔄 [READING_MATERIAL] Updating dependent materials...');
-          await supabase
-              .from('reading_materials')
-              .update({
-                'prerequisite_id': null,
-                'updated_at': DateTime.now().toIso8601String(),
-              })
-              .eq('prerequisite_id', materialId);
-          debugPrint(
-            '✅ [READING_MATERIAL] Removed as prerequisite from other materials',
-          );
-        } catch (e) {
-          debugPrint(
-            '⚠️ [READING_MATERIAL] Failed to update dependent materials: $e',
-          );
-        }
-      }
-
-      // Step 4 - Finally delete the material record itself
-      try {
-        debugPrint('🗑️ [READING_MATERIAL] Deleting main material record...');
-        await supabase.from('reading_materials').delete().eq('id', materialId);
-        debugPrint('✅ [READING_MATERIAL] Material deleted successfully');
-        return true;
-      } catch (e) {
-        debugPrint(
-          '❌ [READING_MATERIAL] Failed to delete main material record: $e',
-        );
-        return false;
-      }
-    } catch (e) {
-      debugPrint('❌ [READING_MATERIAL] Error deleting material: $e');
+    if (material == null) {
+      debugPrint('❌ [READING_MATERIAL] Material not found');
       return false;
     }
+
+    final fileUrl = material['file_url'] as String?;
+    final audioUrl = material['audio_url'] as String?;
+    
+    // Track successful deletions
+    final deletions = <String, bool>{};
+
+    // Step 1: Delete main file from storage
+    if (fileUrl != null && fileUrl.isNotEmpty) {
+      final fileDeleted = await _deleteFileFromStorage(fileUrl, 'main');
+      deletions['main_file'] = fileDeleted;
+    }
+
+    // Step 2: Delete audio file from storage if exists
+    if (audioUrl != null && audioUrl.isNotEmpty) {
+      final audioDeleted = await _deleteFileFromStorage(audioUrl, 'audio');
+      deletions['audio_file'] = audioDeleted;
+    }
+
+    // Step 3: Delete all student recordings for this material
+    try {
+      debugPrint('🗑️ [READING_MATERIAL] Deleting student recordings...');
+      
+      // First, get all student recordings to delete their files from storage
+      final recordings = await supabase
+          .from('student_recordings')
+          .select('recording_url, file_url')
+          .eq('material_id', materialId);
+      
+      // Delete each recording file from storage
+      for (final recording in recordings) {
+        final recordingUrl = recording['recording_url'] as String? ?? recording['file_url'] as String?;
+        if (recordingUrl != null && recordingUrl.isNotEmpty) {
+          await _deleteFileFromStorage(recordingUrl, 'student_recording');
+        }
+      }
+      
+      // Delete the recording records
+      await supabase
+          .from('student_recordings')
+          .delete()
+          .eq('material_id', materialId);
+          
+      debugPrint('✅ [READING_MATERIAL] Deleted student recordings');
+    } catch (e) {
+      debugPrint('⚠️ [READING_MATERIAL] Failed to delete student recordings: $e');
+    }
+
+    // Step 4: Delete classroom assignments
+    try {
+      debugPrint('🗑️ [READING_MATERIAL] Deleting classroom assignments...');
+      await supabase
+          .from('classroom_reading_materials')
+          .delete()
+          .eq('reading_material_id', materialId);
+      debugPrint('✅ [READING_MATERIAL] Deleted classroom assignments');
+    } catch (e) {
+      debugPrint('⚠️ [READING_MATERIAL] Failed to delete classroom assignments: $e');
+    }
+
+    // Step 5: Remove as prerequisite from other materials
+    if (materialId.isNotEmpty) {
+      try {
+        debugPrint('🔄 [READING_MATERIAL] Updating dependent materials...');
+        await supabase
+            .from('reading_materials')
+            .update({
+              'prerequisite_id': null,
+              'updated_at': DateTime.now().toIso8601String(),
+            })
+            .eq('prerequisite_id', materialId);
+        debugPrint('✅ [READING_MATERIAL] Removed as prerequisite');
+      } catch (e) {
+        debugPrint('⚠️ [READING_MATERIAL] Failed to update dependent materials: $e');
+      }
+    }
+
+    // Step 6: Delete main material record
+    try {
+      debugPrint('🗑️ [READING_MATERIAL] Deleting main material record...');
+      await supabase.from('reading_materials').delete().eq('id', materialId);
+      debugPrint('✅ [READING_MATERIAL] Material deleted successfully');
+      
+      // Log deletion summary
+      _logDeletionSummary(materialId, deletions);
+      
+      return true;
+    } catch (e) {
+      debugPrint('❌ [READING_MATERIAL] Failed to delete main material record: $e');
+      return false;
+    }
+    
+  } catch (e) {
+    debugPrint('❌ [READING_MATERIAL] Error deleting material: $e');
+    return false;
   }
+}
+
+/// Helper method to delete a file from storage with proper path extraction
+static Future<bool> _deleteFileFromStorage(String fileUrl, String fileType) async {
+  try {
+    debugPrint('🗑️ [STORAGE] Deleting $fileType file: $fileUrl');
+    
+    // Extract the storage path from the URL
+    final storagePath = _extractStoragePath(fileUrl);
+    
+    if (storagePath == null) {
+      debugPrint('⚠️ [STORAGE] Could not extract path from URL: $fileUrl');
+      return false;
+    }
+    
+    debugPrint('📁 [STORAGE] Extracted path: $storagePath');
+    
+    // Always use 'materials' bucket since both reading_materials and teacher_instructions are in it
+    const bucket = 'materials';
+    
+    // Try to delete the file
+    await supabase.storage.from(bucket).remove([storagePath]);
+    debugPrint('✅ [STORAGE] Successfully deleted $fileType file');
+    return true;
+    
+  } catch (e) {
+    // Don't fail the entire deletion if file doesn't exist or can't be deleted
+    debugPrint('⚠️ [STORAGE] Failed to delete $fileType file: $e');
+    return false;
+  }
+}
+
+/// Extract storage path from a Supabase storage URL
+static String? _extractStoragePath(String url) {
+  try {
+    final uri = Uri.parse(url);
+    final pathSegments = uri.pathSegments;
+    
+    // URL format: https://[project].supabase.co/storage/v1/object/public/materials/[path]
+    // Find the bucket name 'materials' in the path
+    final bucketIndex = pathSegments.indexOf('materials');
+    if (bucketIndex >= 0 && bucketIndex + 1 < pathSegments.length) {
+      // Return everything after 'materials'
+      return pathSegments.sublist(bucketIndex + 1).join('/');
+    }
+    
+    // Fallback: Try to extract from URL string
+    if (url.contains('materials/')) {
+      final parts = url.split('materials/');
+      if (parts.length > 1) {
+        return parts[1];
+      }
+    }
+    
+    return null;
+  } catch (e) {
+    debugPrint('⚠️ [STORAGE] Error extracting path: $e');
+    return null;
+  }
+}
+
+/// Log deletion summary for debugging
+static void _logDeletionSummary(String materialId, Map<String, bool> deletions) {
+  final successCount = deletions.values.where((v) => v == true).length;
+  final totalCount = deletions.length;
+  
+  debugPrint('📊 [DELETION_SUMMARY] Material: $materialId');
+  debugPrint('   Files deleted: $successCount/$totalCount');
+  
+  deletions.forEach((type, success) {
+    debugPrint('   ${type.padRight(15)}: ${success ? "✅" : "⚠️"}');
+  });
+}
 
   /// Get all reading levels for dropdown
   static Future<List<Map<String, dynamic>>> getAllReadingLevels() async {

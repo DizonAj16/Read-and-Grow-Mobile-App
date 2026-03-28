@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart'; 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
@@ -54,8 +54,8 @@ class _AddLessonWithQuizScreenState extends State<AddLessonWithQuizScreen> {
   final Map<int, Map<int, String?>> _optionImages = {};
 
   // ADD these two alongside _uploadedFileUrl, _uploadedFilePath, etc.:
-Uint8List? _uploadedFileBytes;  // raw bytes for web-safe upload
-String?    _uploadedFileName;   // original filename (for extension)
+  Uint8List? _uploadedFileBytes; // raw bytes for web-safe upload
+  String? _uploadedFileName; // original filename (for extension)
 
   FocusNode _getQuestionFocusNode(int index) {
     if (!_questionFocusNodes.containsKey(index)) {
@@ -250,11 +250,41 @@ String?    _uploadedFileName;   // original filename (for extension)
     setState(() {});
   }
 
+  // In AddLessonWithQuizScreen - Add these methods
+
+// Helper method to upload question image
+Future<String?> _uploadQuestionImage(Uint8List imageBytes, String fileName) async {
+  return await ApiService.uploadFile(
+    imageBytes,
+    fileName,
+    folder: 'question_images', // Organize in question_images folder
+  );
+}
+
+// Helper method to upload option image
+Future<String?> _uploadOptionImage(Uint8List imageBytes, String fileName) async {
+  return await ApiService.uploadFile(
+    imageBytes,
+    fileName,
+    folder: 'option_images', // Organize in option_images folder
+  );
+}
+
+// Helper method to upload lesson material
+Future<String?> _uploadLessonMaterial(Uint8List fileBytes, String fileName) async {
+  return await ApiService.uploadFile(
+    fileBytes,
+    fileName,
+    folder: 'lesson_materials', // Organize in lesson_materials folder
+  );
+}
+
+// In AddLessonWithQuizScreen - Update _pickFile method
 Future<void> _pickFile() async {
   FilePickerResult? result = await FilePicker.platform.pickFiles(
     type: FileType.custom,
     allowedExtensions: ['pdf', 'mp4', 'mp3', 'wav', 'jpg', 'jpeg', 'png'],
-    withData: true, // ← required for web: loads bytes immediately
+    withData: true,
   );
 
   if (result == null || result.files.single.bytes == null) return;
@@ -264,7 +294,6 @@ Future<void> _pickFile() async {
   final fileName = pickedFile.name;
   final fileExtension = fileName.split('.').last.toLowerCase();
 
-  // Validate size from bytes — works on web + mobile
   final validation = FileValidator.validateBytes(bytes);
   if (!validation.isValid) {
     if (mounted) {
@@ -278,7 +307,13 @@ Future<void> _pickFile() async {
     return;
   }
 
-  final uploadedUrl = await ApiService.uploadFile(bytes, fileName);
+  // Upload to lesson_materials folder
+  final uploadedUrl = await ApiService.uploadFile(
+    bytes,
+    fileName,
+    folder: 'lesson_materials',
+  );
+  
   if (uploadedUrl == null) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -292,10 +327,10 @@ Future<void> _pickFile() async {
   }
 
   setState(() {
-    _uploadedFileUrl      = uploadedUrl;
-    _uploadedFileBytes    = bytes;
-    _uploadedFileName     = fileName;
-    _uploadedFilePath     = _extractStoragePath(uploadedUrl);
+    _uploadedFileUrl = uploadedUrl;
+    _uploadedFileBytes = bytes;
+    _uploadedFileName = fileName;
+    _uploadedFilePath = _extractStoragePath(uploadedUrl);
     _uploadedFileExtension = fileExtension;
     if (['jpg', 'jpeg', 'png'].contains(fileExtension)) {
       _uploadedFileType = 'image';
@@ -309,7 +344,8 @@ Future<void> _pickFile() async {
   });
 }
 
-Future<String?> _pickImage() async {
+// In AddLessonWithQuizScreen - Update _pickImage method
+Future<String?> _pickImage({String? contextType}) async {
   final picker = ImagePicker();
   final pickedFile = await picker.pickImage(
     source: ImageSource.gallery,
@@ -317,10 +353,8 @@ Future<String?> _pickImage() async {
   );
   if (pickedFile == null) return null;
 
-  // readAsBytes() works on both web and mobile
   final bytes = await pickedFile.readAsBytes();
 
-  // Validate size from bytes
   final validation = FileValidator.validateBytes(bytes);
   if (!validation.isValid) {
     if (mounted) {
@@ -334,7 +368,22 @@ Future<String?> _pickImage() async {
     return null;
   }
 
-  final uploadedUrl = await ApiService.uploadFile(bytes, pickedFile.name);
+  // Determine folder based on context
+  String folder;
+  if (contextType == 'question') {
+    folder = 'question_images';
+  } else if (contextType == 'option') {
+    folder = 'option_images';
+  } else {
+    folder = 'question_images'; // default
+  }
+
+  final uploadedUrl = await ApiService.uploadFile(
+    bytes,
+    pickedFile.name,
+    folder: folder,
+  );
+  
   if (uploadedUrl == null && mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -375,21 +424,24 @@ Future<String?> _pickImage() async {
     Color iconColor = primaryColor;
 
     switch (_uploadedFileType) {
-case 'image':
-  previewWidget = ClipRRect(
-    borderRadius: BorderRadius.circular(8),
-    child: _uploadedFileBytes != null
-        ? Image.memory(         // ← instant local preview, web-safe
-            _uploadedFileBytes!,
-            height: 150,
-            fit: BoxFit.contain,
-          )
-        : Image.network(        // ← fallback if bytes somehow lost
-            _uploadedFileUrl!,
-            height: 150,
-            fit: BoxFit.contain,
-          ),
-  );
+      case 'image':
+        previewWidget = ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child:
+              _uploadedFileBytes != null
+                  ? Image.memory(
+                    // ← instant local preview, web-safe
+                    _uploadedFileBytes!,
+                    height: 150,
+                    fit: BoxFit.contain,
+                  )
+                  : Image.network(
+                    // ← fallback if bytes somehow lost
+                    _uploadedFileUrl!,
+                    height: 150,
+                    fit: BoxFit.contain,
+                  ),
+        );
       case 'pdf':
         previewWidget = Container(
           padding: const EdgeInsets.all(12),
@@ -742,7 +794,7 @@ case 'image':
         title: _lessonTitleController.text,
         description: _lessonDescController.text,
         timeLimitMinutes: int.tryParse(_lessonTimeController.text),
-          // unlocksNextLevel: _unlocksNextLevel,
+        // unlocksNextLevel: _unlocksNextLevel,
       );
 
       if (lesson == null) {
@@ -1196,7 +1248,7 @@ case 'image':
         const SizedBox(height: 8),
         GestureDetector(
           onTap: () async {
-            final imageUrl = await _pickImage();
+          final imageUrl = await _pickImage(contextType: 'question');
             if (imageUrl != null) {
               q.questionImageUrl = imageUrl;
               setState(() {});
@@ -1626,7 +1678,7 @@ case 'image':
                           children: [
                             GestureDetector(
                               onTap: () async {
-                                final imageUrl = await _pickImage();
+                          final imageUrl = await _pickImage(contextType: 'option');
                                 if (imageUrl != null) {
                                   setState(() {
                                     pair.rightItemUrl = imageUrl;
@@ -1779,7 +1831,7 @@ case 'image':
                       // Option image upload for multiple choice with images
                       GestureDetector(
                         onTap: () async {
-                          final imageUrl = await _pickImage();
+                        final imageUrl = await _pickImage(contextType: 'option');
                           if (imageUrl != null) {
                             _setOptionImage(questionIndex, i, imageUrl);
                             _clearQuestionError(questionIndex, 'option_$i');
