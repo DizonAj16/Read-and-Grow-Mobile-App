@@ -23,15 +23,100 @@ class EssayGradingScreen extends StatefulWidget {
 class _EssayGradingScreenState extends State<EssayGradingScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   bool _isLoading = true;
+  bool _isLoadingMaterials = true;
   List<Map<String, dynamic>> _essaySubmissions = [];
+  List<Map<String, dynamic>> _lessonMaterials = [];
   Map<String, Map<String, dynamic>> _studentsData = {};
   String _filterStatus = 'all'; // 'all', 'graded', 'pending'
   final Map<String, bool> _expandedCards = {}; // Track expanded/collapsed state
+  String? _essayAssignmentId;
+  String? _taskId;
 
   @override
   void initState() {
     super.initState();
     _loadEssaySubmissions();
+    _loadLessonMaterials();
+  }
+
+  Future<void> _loadLessonMaterials() async {
+    setState(() => _isLoadingMaterials = true);
+
+    try {
+      // First, get the task_id from the assignment
+      final assignmentRes =
+          await _supabase
+              .from('assignments')
+              .select('task_id')
+              .eq('id', widget.assignmentId)
+              .maybeSingle();
+
+      if (assignmentRes != null) {
+        _taskId = assignmentRes['task_id'] as String?;
+      }
+
+      if (_taskId == null) {
+        setState(() {
+          _lessonMaterials = [];
+          _isLoadingMaterials = false;
+        });
+        return;
+      }
+
+      // Get materials from task_materials table (materials attached to this specific task)
+      final taskMaterialsRes = await _supabase
+          .from('task_materials')
+          .select('*')
+          .eq('task_id', _taskId!)
+          .timeout(const Duration(seconds: 10));
+
+      List<Map<String, dynamic>> materials = [];
+
+      if (taskMaterialsRes != null && taskMaterialsRes.isNotEmpty) {
+        for (var material in taskMaterialsRes) {
+          String fileUrl = '';
+          final filePath = material['material_file_path'] as String?;
+
+          if (filePath != null && filePath.isNotEmpty) {
+            try {
+              // The filePath already contains the folder structure (e.g., "lesson_materials/filename.pdf")
+              // Get public URL from storage - this will return the full URL
+              fileUrl = _supabase.storage
+                  .from('materials')
+                  .getPublicUrl(filePath);
+
+              debugPrint('📁 Material file path: $filePath');
+              debugPrint('📁 Material URL: $fileUrl');
+            } catch (e) {
+              debugPrint('Error getting file URL: $e');
+            }
+          }
+
+          // Only add if we have a valid file URL
+          if (fileUrl.isNotEmpty) {
+            materials.add({
+              'id': material['id'],
+              'title': material['material_title'] ?? 'Lesson Material',
+              'description': material['description'],
+              'file_url': fileUrl,
+              'file_path': filePath,
+              'material_type': material['material_type'] ?? 'pdf',
+            });
+          }
+        }
+      }
+
+      setState(() {
+        _lessonMaterials = materials;
+        _isLoadingMaterials = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading lesson materials: $e');
+      setState(() {
+        _lessonMaterials = [];
+        _isLoadingMaterials = false;
+      });
+    }
   }
 
   Future<void> _loadEssaySubmissions() async {
@@ -75,6 +160,8 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
         });
         return;
       }
+
+      _essayAssignmentId = essayAssignmentId;
 
       // Get essay questions for this assignment
       final questionsRes = await _supabase
@@ -187,6 +274,360 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
         .toList();
   }
 
+  Widget _buildLessonMaterialsSection() {
+    if (_isLoadingMaterials) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_lessonMaterials.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.05),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+              border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.menu_book, color: primaryColor, size: 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Lesson Material',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: primaryColor,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${_lessonMaterials.length} file(s)',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+          // Materials List
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children:
+                  _lessonMaterials.map((material) {
+                    return _buildMaterialCard(material);
+                  }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMaterialCard(Map<String, dynamic> material) {
+    final title = material['title'] ?? 'Untitled Material';
+    final description = material['description'] as String?;
+    final fileUrl = material['file_url'] as String? ?? '';
+    final materialType =
+        material['material_type']?.toString().toLowerCase() ?? 'pdf';
+    final hasFile = fileUrl.isNotEmpty;
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap:
+            hasFile ? () => _viewMaterial(fileUrl, materialType, title) : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Container(
+                width: 45,
+                height: 45,
+                decoration: BoxDecoration(
+                  color: _getMaterialColor(materialType).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  _getMaterialIcon(materialType),
+                  color: _getMaterialColor(materialType),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (description != null && description.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          description,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[600],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (hasFile)
+                Icon(Icons.chevron_right, color: primaryColor, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _viewMaterial(
+    String url,
+    String materialType,
+    String title,
+  ) async {
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No file available to open'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    try {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder:
+              (context) => Scaffold(
+                appBar: AppBar(
+                  title: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                body: _getMaterialViewer(url, materialType),
+              ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to open material: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Widget _getMaterialViewer(String url, String materialType) {
+    try {
+      switch (materialType) {
+        case 'pdf':
+          // Add error handling for PDF viewer
+          return Container(
+            color: Colors.grey[50],
+            child: SfPdfViewer.network(
+              url,
+              canShowScrollHead: true,
+              canShowScrollStatus: true,
+              pageSpacing: 8,
+              onDocumentLoadFailed: (details) {
+                debugPrint('❌ PDF load failed: ${details.error}');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to load PDF: ${details.error}'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              },
+              onPageChanged: (details) {
+                debugPrint('📄 PDF page changed to: ${details.newPageNumber}');
+              },
+              onDocumentLoaded: (details) {
+                debugPrint('✅ PDF loaded successfully: ${details.document}');
+              },
+            ),
+          );
+        case 'image':
+        case 'jpg':
+        case 'jpeg':
+        case 'png':
+          return PhotoView(
+            imageProvider: NetworkImage(url),
+            minScale: PhotoViewComputedScale.contained * 0.8,
+            maxScale: PhotoViewComputedScale.covered * 2,
+            backgroundDecoration: const BoxDecoration(color: Colors.black),
+            loadingBuilder:
+                (context, event) => Center(
+                  child: CircularProgressIndicator(
+                    value:
+                        event == null
+                            ? null
+                            : event.cumulativeBytesLoaded /
+                                event.expectedTotalBytes!,
+                  ),
+                ),
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('❌ Image load error: $error');
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.broken_image, size: 64, color: Colors.grey),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Failed to load image',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        case 'video':
+          return _VideoViewerWidget(videoUrl: url);
+        default:
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.insert_drive_file, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                Text(
+                  'Preview not available for .$materialType files',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Download started...')),
+                    );
+                  },
+                  icon: const Icon(Icons.download),
+                  label: const Text('Download File'),
+                ),
+              ],
+            ),
+          );
+      }
+    } catch (e) {
+      debugPrint('❌ Material viewer error: $e');
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(
+              'Failed to load file: ${e.toString()}',
+              style: const TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () async {
+                // Open in browser as fallback
+                // You might want to add a URL launcher here
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Opening in browser...')),
+                );
+              },
+              icon: const Icon(Icons.open_in_browser),
+              label: const Text('Open in Browser'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  IconData _getMaterialIcon(String materialType) {
+    switch (materialType) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'video':
+        return Icons.videocam;
+      case 'audio':
+        return Icons.audiotrack;
+      case 'image':
+        return Icons.image;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
+
+  Color _getMaterialColor(String materialType) {
+    switch (materialType) {
+      case 'pdf':
+        return Colors.red[700]!;
+      case 'video':
+        return Colors.purple[700]!;
+      case 'audio':
+        return Colors.orange[700]!;
+      case 'image':
+        return Colors.green[700]!;
+      default:
+        return Colors.blue[700]!;
+    }
+  }
+
+  // ... (keep all existing methods for grading, star rating, etc.)
+
   Future<void> _gradeEssay(Map<String, dynamic> submission) async {
     final TextEditingController _feedbackController = TextEditingController(
       text: submission['teacher_feedback']?.toString() ?? '',
@@ -233,7 +674,6 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Header with icon
                       Container(
                         width: 80,
                         height: 80,
@@ -249,10 +689,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                           color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
-
                       const SizedBox(height: 16),
-
-                      // Title
                       Text(
                         'Grade Essay',
                         style: TextStyle(
@@ -261,17 +698,12 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                           color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
-
                       const SizedBox(height: 8),
-
                       Text(
                         'Rate the student\'s essay',
                         style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                       ),
-
                       const SizedBox(height: 24),
-
-                      // Star Rating
                       Column(
                         children: [
                           Text(
@@ -282,10 +714,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                               color: _getStarColor(_starRating),
                             ),
                           ),
-
                           const SizedBox(height: 12),
-
-                          // Star Rating Widget
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: List.generate(5, (index) {
@@ -307,10 +736,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                               );
                             }),
                           ),
-
                           const SizedBox(height: 8),
-
-                          // Numeric score display
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
@@ -333,10 +759,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 24),
-
-                      // Feedback Section
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -358,9 +781,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                               ),
                             ],
                           ),
-
                           const SizedBox(height: 12),
-
                           Container(
                             decoration: BoxDecoration(
                               color: Colors.grey[50],
@@ -380,10 +801,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 32),
-
-                      // Action Buttons
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -410,9 +828,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                               ),
                             ),
                           ),
-
                           const SizedBox(width: 16),
-
                           Expanded(
                             child: ElevatedButton(
                               onPressed: () async {
@@ -476,7 +892,6 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
 
     if (result == true) {
       try {
-        // Convert star rating back to numerical score
         final numericalScore = _convertStarsToScore(_starRating);
 
         final success = await ApiService.gradeEssay(
@@ -527,19 +942,16 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
     }
   }
 
-  // Convert numerical score (0-10) to stars (1-5)
   double _convertScoreToStars(double score) {
     if (score <= 0) return 1.0;
     if (score >= 10) return 5.0;
     return (score / 2).clamp(1.0, 5.0);
   }
 
-  // Convert stars (1-5) to numerical score (1-10)
   double _convertStarsToScore(double stars) {
-    return (stars * 2).clamp(2.0, 10.0); // Minimum 2, maximum 10
+    return (stars * 2).clamp(2.0, 10.0);
   }
 
-  // Get color based on star rating
   Color _getStarColor(double stars) {
     if (stars >= 4.0) return Colors.green[700]!;
     if (stars >= 3.0) return Colors.blue[700]!;
@@ -547,7 +959,6 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
     return Colors.red[700]!;
   }
 
-  // Get star rating display
   Widget _buildStarRating(double stars) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -563,14 +974,12 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
     );
   }
 
-  // Toggle card expansion
   void _toggleCardExpansion(String cardId) {
     setState(() {
       _expandedCards[cardId] = !(_expandedCards[cardId] ?? false);
     });
   }
 
-  // UPDATED: View attachment within the app
   Future<void> _viewAttachment(String url, String fileName) async {
     final fileExtension = _getFileExtension(fileName);
 
@@ -597,15 +1006,12 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
     );
   }
 
-  // Get file extension from file name
   String _getFileExtension(String fileName) {
     final parts = fileName.split('.');
     return parts.length > 1 ? parts.last.toLowerCase() : '';
   }
 
-  // Get appropriate viewer based on file type
   Widget _getMediaViewer(String url, String fileExtension) {
-    // Check if it's an image
     if (['jpg', 'jpeg', 'png', 'gif', 'bmp'].contains(fileExtension)) {
       return PhotoView(
         imageProvider: NetworkImage(url),
@@ -615,17 +1021,14 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
       );
     }
 
-    // Check if it's a PDF
     if (fileExtension == 'pdf') {
       return SfPdfViewer.network(url);
     }
 
-    // Check if it's a video
     if (['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(fileExtension)) {
       return _VideoViewerWidget(videoUrl: url);
     }
 
-    // For other file types (doc, docx, etc.)
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -672,7 +1075,6 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
     );
   }
 
-  // Download file function
   Future<void> _downloadFile(String url, String fileExtension) async {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -690,7 +1092,6 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
     );
   }
 
-  // Get file icon based on extension
   IconData _getFileIconFromExtension(String extension) {
     switch (extension.toLowerCase()) {
       case 'pdf':
@@ -713,6 +1114,11 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
     }
   }
 
+  IconData _getFileIcon(String fileName) {
+    final extension = fileName.split('.').last.toLowerCase();
+    return _getFileIconFromExtension(extension);
+  }
+
   Map<String, dynamic> _getStudentData(String? studentId) {
     if (studentId == null || !_studentsData.containsKey(studentId)) {
       return {};
@@ -725,11 +1131,8 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
     final isExpanded = _expandedCards[cardId] ?? false;
     final studentId = submission['student_id']?.toString();
     final student = _getStudentData(studentId);
-
-    // CHANGED: Use 'essay_question' instead of 'essay_questions'
     final question =
         submission['essay_question'] as Map<String, dynamic>? ?? {};
-
     final responseText = submission['response_text']?.toString() ?? '';
     final wordCount = submission['word_count'] as int? ?? 0;
     final wordLimit = question['word_limit'] as int?;
@@ -739,16 +1142,13 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
     final questionImageUrl = question['question_image_url']?.toString();
     final attachedFiles = submission['attached_files'] as List? ?? [];
 
-    // Convert score to stars if graded
     final starRating =
         isGraded && teacherScore != null
             ? _convertScoreToStars(teacherScore)
             : 0.0;
 
-    // Student data from students table
     final studentName =
         student['student_name']?.toString() ?? 'Unknown Student';
-    final studentEmail = student['username']?.toString() ?? '';
     final profilePicture = student['profile_picture']?.toString();
     final studentLrn = student['student_lrn']?.toString() ?? '';
     final studentGrade = student['student_grade']?.toString() ?? '';
@@ -764,7 +1164,6 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
         curve: Curves.easeInOut,
         child: Column(
           children: [
-            // Collapsed Header (same as before)
             InkWell(
               onTap: () => _toggleCardExpansion(cardId),
               child: Container(
@@ -779,7 +1178,6 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                 ),
                 child: Row(
                   children: [
-                    // Profile picture
                     Container(
                       width: 50,
                       height: 50,
@@ -794,9 +1192,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                                 ? DecorationImage(
                                   image: NetworkImage(profilePicture),
                                   fit: BoxFit.cover,
-                                  onError: (exception, stackTrace) {
-                                    // Error handled by fallback
-                                  },
+                                  onError: (exception, stackTrace) {},
                                 )
                                 : null,
                       ),
@@ -819,10 +1215,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                               )
                               : null,
                     ),
-
                     const SizedBox(width: 16),
-
-                    // Student info
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -856,8 +1249,6 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                         ],
                       ),
                     ),
-
-                    // Status and expand icon
                     Column(
                       children: [
                         Chip(
@@ -884,9 +1275,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                           ),
                           visualDensity: VisualDensity.compact,
                         ),
-
                         const SizedBox(height: 8),
-
                         Icon(
                           isExpanded ? Icons.expand_less : Icons.expand_more,
                           color: Theme.of(context).colorScheme.primary,
@@ -897,15 +1286,12 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                 ),
               ),
             ),
-
-            // Expanded Content
             if (isExpanded) ...[
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Question Section
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -933,9 +1319,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                               ),
                             ],
                           ),
-
                           const SizedBox(height: 12),
-
                           if (questionImageUrl != null &&
                               questionImageUrl.isNotEmpty)
                             Column(
@@ -977,7 +1361,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                                       questionImageUrl,
                                       height: 150,
                                       width: double.infinity,
-                                      fit: BoxFit.cover,
+                                      fit: BoxFit.contain,
                                       errorBuilder: (
                                         context,
                                         error,
@@ -1000,8 +1384,6 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                                 const SizedBox(height: 12),
                               ],
                             ),
-
-                          // CHANGED: Access question text properly
                           if (question.isNotEmpty &&
                               question['question_text'] != null)
                             Text(
@@ -1020,10 +1402,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                         ],
                       ),
                     ),
-
                     const SizedBox(height: 16),
-
-                    // Student Response (rest of the code remains the same)
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -1051,9 +1430,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                               ),
                             ],
                           ),
-
                           const SizedBox(height: 12),
-
                           if (responseText.isNotEmpty)
                             Text(
                               responseText,
@@ -1071,7 +1448,6 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                         ],
                       ),
                     ),
-                    // Attached files
                     if (attachedFiles.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       Container(
@@ -1101,9 +1477,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                                 ),
                               ],
                             ),
-
                             const SizedBox(height: 12),
-
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
@@ -1170,10 +1544,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                         ),
                       ),
                     ],
-
                     const SizedBox(height: 16),
-
-                    // Grade display or grading button
                     if (isGraded)
                       Container(
                         padding: const EdgeInsets.all(16),
@@ -1231,9 +1602,7 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                                 ),
                               ],
                             ),
-
                             const SizedBox(height: 16),
-
                             OutlinedButton.icon(
                               onPressed: () => _gradeEssay(submission),
                               icon: Icon(
@@ -1256,7 +1625,6 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                                 ),
                               ),
                             ),
-
                             if (teacherFeedback != null &&
                                 teacherFeedback.isNotEmpty) ...[
                               const SizedBox(height: 16),
@@ -1318,11 +1686,6 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
     );
   }
 
-  IconData _getFileIcon(String fileName) {
-    final extension = fileName.split('.').last.toLowerCase();
-    return _getFileIconFromExtension(extension);
-  }
-
   @override
   Widget build(BuildContext context) {
     final filteredSubmissions = _filteredSubmissions;
@@ -1349,7 +1712,10 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
             message: 'Refresh',
             child: IconButton(
               icon: const Icon(Icons.refresh),
-              onPressed: _loadEssaySubmissions,
+              onPressed: () {
+                _loadLessonMaterials();
+                _loadEssaySubmissions();
+              },
             ),
           ),
         ],
@@ -1417,63 +1783,86 @@ class _EssayGradingScreenState extends State<EssayGradingScreen> {
                   ],
                 ),
               )
-              : filteredSubmissions.isEmpty
-              ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.primary.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.inbox,
-                        size: 60,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      _filterStatus == 'all'
-                          ? 'No essay submissions yet'
-                          : 'No ${_filterStatus} essays',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Students haven\'t submitted essays for this assignment yet.',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              )
               : RefreshIndicator(
-                onRefresh: _loadEssaySubmissions,
+                onRefresh: () async {
+                  await _loadLessonMaterials();
+                  await _loadEssaySubmissions();
+                },
                 color: Theme.of(context).colorScheme.primary,
                 backgroundColor: Colors.white,
-                child: ListView.builder(
-                  padding: const EdgeInsets.only(top: 8, bottom: 20),
-                  itemCount: filteredSubmissions.length,
-                  itemBuilder: (context, index) {
-                    return _buildEssayCard(filteredSubmissions[index]);
-                  },
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Column(
+                    children: [
+                      // Lesson Materials Section - Always show if materials exist
+                      if (!_isLoadingMaterials && _lessonMaterials.isNotEmpty)
+                        _buildLessonMaterialsSection(),
+
+                      // Student Submissions Section
+                      if (filteredSubmissions.isEmpty)
+                        // Show empty state message
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 32),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 120,
+                                  height: 120,
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.inbox,
+                                    size: 60,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                Text(
+                                  _filterStatus == 'all'
+                                      ? 'No essay submissions yet'
+                                      : 'No ${_filterStatus} essays',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Students haven\'t submitted essays for this assignment yet.',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[500],
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        // Show submissions
+                        Column(
+                          children:
+                              filteredSubmissions.map((submission) {
+                                return _buildEssayCard(submission);
+                              }).toList(),
+                        ),
+                    ],
+                  ),
                 ),
               ),
     );
   }
 }
 
-// Video viewer widget
 class _VideoViewerWidget extends StatefulWidget {
   final String videoUrl;
 

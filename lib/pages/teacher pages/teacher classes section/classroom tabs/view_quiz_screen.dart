@@ -1,15 +1,102 @@
+import 'dart:async';
 import 'package:deped_reading_app_laravel/models/quiz_questions.dart';
 import 'package:flutter/material.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:photo_view/photo_view.dart';
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class QuizPreviewScreen extends StatelessWidget {
+class QuizPreviewScreen extends StatefulWidget {
   final String title;
   final List<QuizQuestion> questions;
+  final String? taskId; // Add taskId to fetch lesson material
+  final String? classRoomId; // Optional for class-specific materials
 
   const QuizPreviewScreen({
     super.key,
     required this.title,
     required this.questions,
+    this.taskId,
+    this.classRoomId,
   });
+
+  @override
+  State<QuizPreviewScreen> createState() => _QuizPreviewScreenState();
+}
+
+class _QuizPreviewScreenState extends State<QuizPreviewScreen> {
+  final SupabaseClient _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> _lessonMaterials = [];
+  bool _isLoadingMaterials = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLessonMaterials();
+  }
+
+Future<void> _loadLessonMaterials() async {
+  if (widget.taskId == null) {
+    setState(() {
+      _isLoadingMaterials = false;
+    });
+    return;
+  }
+
+  try {
+    List<Map<String, dynamic>> materials = [];
+
+    // ONLY get materials from task_materials table (materials attached to this specific task)
+    final taskMaterialsRes = await _supabase
+        .from('task_materials')
+        .select('*')
+        .eq('task_id', widget.taskId!)
+        .timeout(const Duration(seconds: 10));
+
+    if (taskMaterialsRes != null && taskMaterialsRes.isNotEmpty) {
+      for (var material in taskMaterialsRes) {
+        String fileUrl = '';
+        final filePath = material['material_file_path'] as String?;
+
+        if (filePath != null && filePath.isNotEmpty) {
+          try {
+            // Get public URL from storage
+            fileUrl = _supabase.storage
+                .from('materials')
+                .getPublicUrl(filePath);
+          } catch (e) {
+            debugPrint('Error getting file URL: $e');
+          }
+        }
+
+        // Only add if we have a valid file URL
+        if (fileUrl.isNotEmpty) {
+          materials.add({
+            'id': material['id'],
+            'title': material['material_title'] ?? 'Lesson Material',
+            'description': material['description'],
+            'file_url': fileUrl,
+            'file_path': filePath,
+            'material_type': material['material_type'] ?? 'pdf',
+          });
+        }
+      }
+    }
+
+    setState(() {
+      _lessonMaterials = materials;
+      _isLoadingMaterials = false;
+    });
+  } catch (e) {
+    debugPrint('Error loading lesson materials: $e');
+    setState(() {
+      _isLoadingMaterials = false;
+      _errorMessage = 'Failed to load lesson materials';
+    });
+  }
+}
 
   Widget _buildSectionHeader(
     String title,
@@ -45,6 +132,299 @@ class QuizPreviewScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildLessonMaterialsSection(BuildContext context) {
+    if (_isLoadingMaterials) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_lessonMaterials.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader('Lesson Material', Icons.menu_book, context),
+        const SizedBox(height: 8),
+        ..._lessonMaterials.map((material) {
+          return _buildMaterialCard(material, context);
+        }).toList(),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _buildMaterialCard(
+    Map<String, dynamic> material,
+    BuildContext context,
+  ) {
+    final title = material['title'] ?? 'Untitled Material';
+    final description = material['description'] as String?;
+    final fileUrl = material['file_url'] as String? ?? '';
+    final materialType =
+        material['material_type']?.toString().toLowerCase() ?? 'pdf';
+    final hasFile = fileUrl.isNotEmpty;
+    final primaryColor = Theme.of(context).colorScheme.primary; // Add this line
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap:
+            hasFile ? () => _viewMaterial(fileUrl, materialType, title) : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: _getMaterialColor(materialType).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  _getMaterialIcon(materialType),
+                  color: _getMaterialColor(materialType),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (description != null && description.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          description,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _getMaterialColor(
+                              materialType,
+                            ).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            materialType.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: _getMaterialColor(materialType),
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        if (hasFile)
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.visibility,
+                                size: 16,
+                                color: primaryColor,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'View',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: primaryColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _viewMaterial(
+    String url,
+    String materialType,
+    String title,
+  ) async {
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No file available to open'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    try {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder:
+              (context) => Scaffold(
+                appBar: AppBar(
+                  title: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                body: _getMaterialViewer(url, materialType),
+              ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to open material: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Widget _getMaterialViewer(String url, String materialType) {
+    try {
+      switch (materialType) {
+        case 'pdf':
+          return SfPdfViewer.network(
+            url,
+            canShowScrollHead: true,
+            canShowScrollStatus: true,
+          );
+        case 'image':
+        case 'jpg':
+        case 'jpeg':
+        case 'png':
+          return PhotoView(
+            imageProvider: NetworkImage(url),
+            minScale: PhotoViewComputedScale.contained * 0.8,
+            maxScale: PhotoViewComputedScale.covered * 2,
+            backgroundDecoration: const BoxDecoration(color: Colors.black),
+            loadingBuilder:
+                (context, event) => Center(
+                  child: CircularProgressIndicator(
+                    value:
+                        event == null
+                            ? null
+                            : event.cumulativeBytesLoaded /
+                                event.expectedTotalBytes!,
+                  ),
+                ),
+          );
+        case 'video':
+          return _VideoPlayerWidget(videoUrl: url);
+        default:
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.insert_drive_file, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                Text(
+                  'Preview not available for .$materialType files',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    // Add download functionality if needed
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Download started...')),
+                    );
+                  },
+                  icon: const Icon(Icons.download),
+                  label: const Text('Download File'),
+                ),
+              ],
+            ),
+          );
+      }
+    } catch (e) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(
+              'Failed to load file: $e',
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  IconData _getMaterialIcon(String materialType) {
+    switch (materialType) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'video':
+        return Icons.videocam;
+      case 'audio':
+        return Icons.audiotrack;
+      case 'image':
+        return Icons.image;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
+
+  Color _getMaterialColor(String materialType) {
+    switch (materialType) {
+      case 'pdf':
+        return Colors.red[700]!;
+      case 'video':
+        return Colors.purple[700]!;
+      case 'audio':
+        return Colors.orange[700]!;
+      case 'image':
+        return Colors.green[700]!;
+      default:
+        return Colors.blue[700]!;
+    }
   }
 
   Widget _buildQuestionImage(String? imageUrl, BuildContext context) {
@@ -101,16 +481,15 @@ class QuizPreviewScreen extends StatelessWidget {
               errorBuilder: (context, error, stackTrace) {
                 return Container(
                   color: Colors.grey[100],
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.broken_image, color: Colors.grey, size: 48),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Failed to load image',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ],
+                  child: const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.broken_image, color: Colors.grey, size: 48),
+                        SizedBox(height: 8),
+                        Text('Failed to load image'),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -128,10 +507,6 @@ class QuizPreviewScreen extends StatelessWidget {
     BuildContext context,
   ) {
     final primaryColor = Theme.of(context).colorScheme.primary;
-
-    debugPrint("Building Multiple Choice Question: ${q.questionText}");
-    debugPrint("Options: ${q.options}");
-    debugPrint("Option Images: ${q.optionImages}");
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -198,12 +573,6 @@ class QuizPreviewScreen extends StatelessWidget {
   ) {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
-    debugPrint(
-      "Building Multiple Choice with Images Question: ${q.questionText}",
-    );
-    debugPrint("Options: ${q.options}");
-    debugPrint("Option Images: ${q.optionImages}");
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -220,11 +589,8 @@ class QuizPreviewScreen extends StatelessWidget {
           final option = entry.value;
           final isCorrect = option == q.correctAnswer;
 
-          // Get the image URL for this option
           final optionImage = q.getOptionImage(optIndex);
           final hasOptionImage = optionImage != null && optionImage.isNotEmpty;
-
-          debugPrint("Option $optIndex - Image URL: $optionImage");
 
           return Card(
             elevation: 1,
@@ -274,23 +640,11 @@ class QuizPreviewScreen extends StatelessWidget {
                         errorBuilder: (context, error, stackTrace) {
                           return Container(
                             color: Colors.grey[100],
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.broken_image,
-                                  color: Colors.grey,
-                                  size: 32,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Failed to load image',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
+                            child: const Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                color: Colors.grey,
+                              ),
                             ),
                           );
                         },
@@ -337,10 +691,6 @@ class QuizPreviewScreen extends StatelessWidget {
     int index,
     BuildContext context,
   ) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-
-    debugPrint("Building True/False Question: ${q.questionText}");
-    // Ensure we have True/False options
     final trueFalseOptions = q.options ?? ['True', 'False'];
 
     return Column(
@@ -399,9 +749,6 @@ class QuizPreviewScreen extends StatelessWidget {
     int index,
     BuildContext context,
   ) {
-    debugPrint("Building Fill in Blank Question: ${q.questionText}");
-    debugPrint("Correct Answer: ${q.correctAnswer}");
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -442,53 +789,38 @@ class QuizPreviewScreen extends StatelessWidget {
     int index,
     BuildContext context,
   ) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-
-    debugPrint("Building Fill in Blank with Image Question: ${q.questionText}");
-    debugPrint("Question Image URL: ${q.questionImageUrl}");
-    debugPrint("Correct Answer: ${q.correctAnswer}");
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Display the answer
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.blue[50],
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.blue[100]!),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue[100]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Correct Answer:',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Colors.blue[700],
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Correct Answer:',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.blue[700],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue[200]!),
-                ),
-                child: Text(
-                  q.correctAnswer ?? "No answer provided",
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue[200]!),
+            ),
+            child: Text(
+              q.correctAnswer ?? "No answer provided",
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -497,13 +829,6 @@ class QuizPreviewScreen extends StatelessWidget {
     int index,
     BuildContext context,
   ) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    final primaryLight = Color.alphaBlend(
-      primaryColor.withOpacity(0.1),
-      Colors.white,
-    );
-
-    debugPrint("Building Drag & Drop Question: ${q.questionText}");
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -558,13 +883,6 @@ class QuizPreviewScreen extends StatelessWidget {
     int index,
     BuildContext context,
   ) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    final primaryLight = Color.alphaBlend(
-      primaryColor.withOpacity(0.1),
-      Colors.white,
-    );
-
-    debugPrint("Building Matching Question: ${q.questionText}");
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -627,21 +945,8 @@ class QuizPreviewScreen extends StatelessWidget {
                                     pair.rightItemUrl!,
                                     fit: BoxFit.contain,
                                     errorBuilder: (context, error, stackTrace) {
-                                      return Center(
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.error,
-                                              color: Colors.red,
-                                            ),
-                                            Text(
-                                              'Failed to load',
-                                              style: TextStyle(fontSize: 12),
-                                            ),
-                                          ],
-                                        ),
+                                      return const Center(
+                                        child: Text('Failed to load image'),
                                       );
                                     },
                                   ),
@@ -671,7 +976,6 @@ class QuizPreviewScreen extends StatelessWidget {
       Colors.white,
     );
 
-    debugPrint("Building Audio Question: ${q.questionText}");
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -714,54 +1018,34 @@ class QuizPreviewScreen extends StatelessWidget {
     int index,
     BuildContext context,
   ) {
-    debugPrint("\n=== START PROCESSING QUESTION ${index + 1} ===");
-    debugPrint("Question Type: ${q.type.name}");
-    debugPrint("Question Text: ${q.questionText}");
-    debugPrint("Question Image URL: ${q.questionImageUrl}");
-    debugPrint("Option Images: ${q.optionImages}");
-    debugPrint("Options: ${q.options}");
-    debugPrint("Correct Answer: ${q.correctAnswer}");
-
-    // Call debug method to see all question data
-    q.debugQuestionData();
-
     Widget content;
 
     switch (q.type) {
       case QuestionType.multipleChoice:
-        debugPrint("Processing as Multiple Choice...");
         content = _buildMultipleChoiceQuestion(q, index, context);
         break;
       case QuestionType.multipleChoiceWithImages:
-        debugPrint("Processing as Multiple Choice with Images...");
         content = _buildMultipleChoiceWithImagesQuestion(q, index, context);
         break;
       case QuestionType.trueFalse:
-        debugPrint("Processing as True/False...");
         content = _buildTrueFalseQuestion(q, index, context);
         break;
       case QuestionType.fillInTheBlank:
-        debugPrint("Processing as Fill in the Blank...");
         content = _buildFillInTheBlankQuestion(q, index, context);
         break;
       case QuestionType.fillInTheBlankWithImage:
-        debugPrint("Processing as Fill in the Blank with Image...");
         content = _buildFillInTheBlankWithImageQuestion(q, index, context);
         break;
       case QuestionType.dragAndDrop:
-        debugPrint("Processing as Drag & Drop...");
         content = _buildDragAndDropQuestion(q, index, context);
         break;
       case QuestionType.matching:
-        debugPrint("Processing as Matching...");
         content = _buildMatchingQuestion(q, index, context);
         break;
       case QuestionType.audio:
-        debugPrint("Processing as Audio...");
         content = _buildAudioQuestion(q, index, context);
         break;
       default:
-        debugPrint("Unknown question type!");
         content = Container(
           padding: const EdgeInsets.all(16),
           child: Text(
@@ -772,7 +1056,6 @@ class QuizPreviewScreen extends StatelessWidget {
         break;
     }
 
-    debugPrint("=== END PROCESSING QUESTION ${index + 1} ===\n");
     return content;
   }
 
@@ -780,30 +1063,9 @@ class QuizPreviewScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
-    debugPrint("\n\n=== BUILDING QUIZ PREVIEW SCREEN ===");
-    debugPrint("Quiz Title: $title");
-    debugPrint("Total questions: ${questions.length}");
-
-    // Detailed debug for each question
-    for (var i = 0; i < questions.length; i++) {
-      final q = questions[i];
-      debugPrint("\n🔍 QUESTION ${i + 1} ANALYSIS:");
-      debugPrint("  - ID: ${q.id}");
-      debugPrint("  - Text: ${q.questionText}");
-      debugPrint("  - Type: ${q.type.name}");
-      debugPrint("  - Type enum: ${q.type}");
-      debugPrint("  - Question Image URL: ${q.questionImageUrl}");
-      debugPrint(
-        "  - Has Question Image: ${q.questionImageUrl != null && q.questionImageUrl!.isNotEmpty}",
-      );
-      debugPrint("  - Option Images: ${q.optionImages}");
-      debugPrint("  - Options: ${q.options}");
-      debugPrint("  - Correct Answer: ${q.correctAnswer}");
-    }
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(title, style: const TextStyle(color: Colors.white)),
+        title: Text(widget.title, style: const TextStyle(color: Colors.white)),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -826,7 +1088,7 @@ class QuizPreviewScreen extends StatelessWidget {
                     Icon(Icons.quiz, size: 48, color: primaryColor),
                     const SizedBox(height: 8),
                     Text(
-                      title,
+                      widget.title,
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -836,7 +1098,7 @@ class QuizPreviewScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${questions.length} ${questions.length == 1 ? 'question' : 'questions'}',
+                      '${widget.questions.length} ${widget.questions.length == 1 ? 'question' : 'questions'}',
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],
@@ -846,10 +1108,13 @@ class QuizPreviewScreen extends StatelessWidget {
 
             const SizedBox(height: 20),
 
+            // Lesson Materials Section (NEW)
+            if (widget.taskId != null) _buildLessonMaterialsSection(context),
+
             // Questions Section
             _buildSectionHeader('Questions Preview', Icons.visibility, context),
 
-            if (questions.isEmpty)
+            if (widget.questions.isEmpty)
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
@@ -870,7 +1135,7 @@ class QuizPreviewScreen extends StatelessWidget {
                 ),
               )
             else
-              ...questions.asMap().entries.map((entry) {
+              ...widget.questions.asMap().entries.map((entry) {
                 final index = entry.key;
                 final q = entry.value;
 
@@ -942,7 +1207,6 @@ class QuizPreviewScreen extends StatelessWidget {
                         ),
 
                         // Display question image for ALL question types that have question images
-                        // This includes multipleChoiceWithImages and fillInTheBlankWithImage
                         if (q.questionImageUrl != null &&
                             q.questionImageUrl!.isNotEmpty)
                           Column(
@@ -968,5 +1232,130 @@ class QuizPreviewScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _VideoPlayerWidget extends StatefulWidget {
+  final String videoUrl;
+
+  const _VideoPlayerWidget({required this.videoUrl});
+
+  @override
+  State<_VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
+}
+
+class _VideoPlayerWidgetState extends State<_VideoPlayerWidget> {
+  late VideoPlayerController _videoPlayerController;
+  ChewieController? _chewieController;
+  bool _isLoading = true;
+  String _error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeVideo();
+  }
+
+  Future<void> _initializeVideo() async {
+    try {
+      _videoPlayerController = VideoPlayerController.networkUrl(
+        Uri.parse(widget.videoUrl),
+      );
+
+      await _videoPlayerController.initialize().timeout(
+        const Duration(seconds: 30),
+      );
+
+      _chewieController = ChewieController(
+        videoPlayerController: _videoPlayerController,
+        autoPlay: false,
+        looping: false,
+        allowFullScreen: true,
+        allowMuting: true,
+        showControls: true,
+        placeholder: Container(
+          color: Colors.grey[300],
+          child: const Center(child: Icon(Icons.videocam, size: 50)),
+        ),
+        errorBuilder: (context, errorMessage) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error, size: 50, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text(
+                  'Failed to load video',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  errorMessage,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      setState(() {
+        _isLoading = false;
+      });
+    } on TimeoutException {
+      setState(() {
+        _isLoading = false;
+        _error = 'Video loading timeout';
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error.isNotEmpty || _chewieController == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            const Text(
+              'Failed to load video',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _error,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _initializeVideo,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Chewie(controller: _chewieController!);
+  }
+
+  @override
+  void dispose() {
+    _videoPlayerController.dispose();
+    _chewieController?.dispose();
+    super.dispose();
   }
 }
