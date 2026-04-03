@@ -961,6 +961,8 @@ class _StudentEssayPageState extends State<StudentEssayPage> {
   }
 
   Widget _buildMaterialCard(Map<String, dynamic> material) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     final title = material['material_title']?.toString() ?? 'Untitled Material';
     final description = material['description']?.toString();
     final filePath = material['material_file_path']?.toString();
@@ -979,6 +981,7 @@ class _StudentEssayPageState extends State<StudentEssayPage> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: colorScheme.surface,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1295,7 +1298,7 @@ class _StudentEssayPageState extends State<StudentEssayPage> {
                         questionImageUrl,
                         height: 180,
                         width: double.infinity,
-                        fit: BoxFit.cover,
+                        fit: BoxFit.contain,
                         loadingBuilder: (context, child, loadingProgress) {
                           if (loadingProgress == null) return child;
                           return Container(
@@ -1635,6 +1638,8 @@ class _StudentEssayPageState extends State<StudentEssayPage> {
   }
 
   Widget _buildErrorView() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -1648,14 +1653,14 @@ class _StudentEssayPageState extends State<StudentEssayPage> {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.error,
+                color: colorScheme.error,
               ),
             ),
             const SizedBox(height: 12),
             Text(
               _errorMessage,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, color: Colors.grey),
+            style: TextStyle(fontSize: 16, color: colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(

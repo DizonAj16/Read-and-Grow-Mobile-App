@@ -2,7 +2,6 @@ import 'dart:ui';
 import 'package:deped_reading_app_laravel/api/user_service.dart';
 import 'package:deped_reading_app_laravel/models/student_model.dart';
 import 'package:flutter/material.dart';
-// import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import '../../widgets/ui_states.dart';
 import '../../utils/database_helpers.dart';
@@ -39,7 +38,6 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
       final currentUser = supabase.auth.currentUser;
       if (currentUser == null) throw Exception('No logged in student');
 
-      // Validate user ID
       if (currentUser.id.isEmpty) {
         throw Exception('Invalid user ID');
       }
@@ -68,7 +66,6 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         debugPrint('📦 Student data loaded from SharedPreferences');
       } catch (prefsError) {
         debugPrint('Error loading from preferences: $prefsError');
-        // Return a default student to prevent null errors
         student = Student(
           id: '',
           studentName: 'Student',
@@ -78,16 +75,13 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
       }
     }
 
-    // Safely normalize profile picture URL - use 'materials' bucket as per UserService
     if (student.profilePicture != null && student.profilePicture!.isNotEmpty) {
       try {
-        // If already a full URL (starts with http/https), use it as is
         if (student.profilePicture!.startsWith('http')) {
           debugPrint('🖼️ Profile picture is already a full URL');
           return student;
         }
 
-        // Get public URL from Supabase storage 'materials' bucket (matches UserService.uploadProfilePicture)
         final bucketBaseUrl = supabase.storage
             .from('materials')
             .getPublicUrl(student.profilePicture!);
@@ -98,7 +92,6 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         }
       } catch (e) {
         debugPrint('⚠️ Error normalizing profile picture URL: $e');
-        // Continue with original URL or null - don't break the profile loading
       }
     }
 
@@ -166,6 +159,8 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -174,11 +169,11 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontSize: 24,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: colorScheme.onPrimary,
           ),
         ),
-        backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.8),
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: colorScheme.primary.withOpacity(0.8),
+        iconTheme: IconThemeData(color: colorScheme.onPrimary),
         elevation: 0,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
@@ -186,7 +181,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit, color: Colors.white),
+            icon: Icon(Icons.edit, color: colorScheme.onPrimary),
             tooltip: 'Edit Info',
             onPressed:
                 _currentStudent == null
@@ -201,8 +196,8 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Theme.of(context).colorScheme.primary,
-              Theme.of(context).colorScheme.secondary,
+              colorScheme.primary,
+              colorScheme.secondary,
             ],
           ),
         ),
@@ -233,7 +228,6 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
     );
 
     if (updated == true) {
-      // Reload student data after update
       setState(() {
         _studentFuture = _initializeStudentData();
       });
@@ -241,6 +235,8 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
   }
 
   Widget _buildProfileContent(Student student) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -259,33 +255,14 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                 const SizedBox(height: 18),
                 Text(
                   student.studentName,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: colorScheme.onPrimary,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                     fontFamily: 'ComicNeue',
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 8),
-                // Container(
-                //   padding: const EdgeInsets.symmetric(
-                //     horizontal: 12,
-                //     vertical: 6,
-                //   ),
-                //   decoration: BoxDecoration(
-                //     color: Colors.amber[700],
-                //     borderRadius: BorderRadius.circular(20),
-                //   ),
-                //   // child: const Text(
-                //   //   "Super Reader",
-                //   //   style: TextStyle(
-                //   //     color: Colors.white,
-                //   //     fontSize: 16,
-                //   //     fontFamily: 'ComicNeue',
-                //   //   ),
-                //   // ),
-                // ),
               ],
             ),
           ),
@@ -296,29 +273,29 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                 _InfoTile(
                   icon: Icons.school_rounded,
                   text: "LRN: ${student.studentLrn ?? 'Not set'}",
-                  iconColor: Colors.pink,
+                  iconColor: colorScheme.primary,
                 ),
-                const Divider(
+                Divider(
                   height: 0,
                   indent: 16,
                   endIndent: 16,
-                  color: Colors.white70,
+                  color: colorScheme.onPrimary.withOpacity(0.3),
                 ),
                 _InfoTile(
                   icon: Icons.star_rounded,
                   text: "Grade: ${student.studentGrade ?? 'Not set'}",
-                  iconColor: Colors.yellow,
+                  iconColor: colorScheme.secondary,
                 ),
-                const Divider(
+                Divider(
                   height: 0,
                   indent: 16,
                   endIndent: 16,
-                  color: Colors.white70,
+                  color: colorScheme.onPrimary.withOpacity(0.3),
                 ),
                 _InfoTile(
                   icon: Icons.group_rounded,
                   text: "Section: ${student.studentSection ?? 'Not set'}",
-                  iconColor: Colors.lightBlue,
+                  iconColor: colorScheme.primary,
                 ),
               ],
             ),
@@ -338,17 +315,19 @@ class _GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withOpacity(0.2),
+        color: colorScheme.surface.withOpacity(0.2),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+          color: colorScheme.onSurface.withOpacity(0.3),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: colorScheme.shadow.withOpacity(0.2),
             blurRadius: 10,
             spreadRadius: 2,
           ),
@@ -383,6 +362,8 @@ class _ProfileAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Hero(
       tag: 'student-profile-image',
       child: Stack(
@@ -393,12 +374,12 @@ class _ProfileAvatar extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: Theme.of(context).colorScheme.onPrimary,
+                color: colorScheme.onPrimary,
                 width: 3,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                  color: colorScheme.primary.withOpacity(0.5),
                   blurRadius: 10,
                   spreadRadius: 3,
                 ),
@@ -409,18 +390,14 @@ class _ProfileAvatar extends StatelessWidget {
                     ? Lottie.asset('assets/animation/loading_rainbow.json')
                     : CircleAvatar(
                       radius: 60,
-                      backgroundColor:
-                          Theme.of(context).colorScheme.primaryContainer,
+                      backgroundColor: colorScheme.primaryContainer,
                       backgroundImage: _getProfileImage(student),
                       child:
                           pickedImage == null && student.profilePicture == null
                               ? Icon(
                                 Icons.person,
                                 size: 50,
-                                color:
-                                    Theme.of(
-                                      context,
-                                    ).colorScheme.onPrimaryContainer,
+                                color: colorScheme.onPrimaryContainer,
                               )
                               : null,
                     ),
@@ -433,9 +410,9 @@ class _ProfileAvatar extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Theme.of(context).colorScheme.secondary,
+                  color: colorScheme.secondary,
                   border: Border.all(
-                    color: Theme.of(context).colorScheme.onSecondary,
+                    color: colorScheme.onSecondary,
                     width: 2,
                   ),
                 ),
@@ -443,7 +420,7 @@ class _ProfileAvatar extends StatelessWidget {
                 child: Icon(
                   Icons.camera_alt_rounded,
                   size: 20,
-                  color: Theme.of(context).colorScheme.onSecondary,
+                  color: colorScheme.onSecondary,
                 ),
               ),
             ),
@@ -469,24 +446,27 @@ class _InfoTile extends StatelessWidget {
   const _InfoTile({
     required this.icon,
     required this.text,
-    this.iconColor = Colors.white,
+    this.iconColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final effectiveIconColor = iconColor ?? colorScheme.primary;
+    
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: iconColor?.withOpacity(0.2),
+          color: effectiveIconColor.withOpacity(0.2),
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: iconColor ?? Colors.white, size: 24),
+        child: Icon(icon, color: effectiveIconColor, size: 24),
       ),
       title: Text(
         text,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: colorScheme.onPrimary,
           fontSize: 18,
           fontFamily: 'ComicNeue',
         ),
@@ -503,13 +483,15 @@ class ConfirmationDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary,
+          color: colorScheme.primary,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white, width: 2),
+          border: Border.all(color: colorScheme.onPrimary, width: 2),
         ),
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -517,8 +499,8 @@ class ConfirmationDialog extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: colorScheme.onPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 fontFamily: 'ComicNeue',
@@ -527,7 +509,7 @@ class ConfirmationDialog extends StatelessWidget {
             const SizedBox(height: 16),
             Container(
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.white, width: 3),
+                border: Border.all(color: colorScheme.onPrimary, width: 3),
                 borderRadius: BorderRadius.circular(100),
               ),
               child: ClipRRect(
@@ -541,11 +523,11 @@ class ConfirmationDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               "Use this as your new profile picture?",
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white,
+                color: colorScheme.onPrimary,
                 fontSize: 16,
                 fontFamily: 'ComicNeue',
               ),
@@ -556,16 +538,16 @@ class ConfirmationDialog extends StatelessWidget {
               children: [
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red[400],
+                    backgroundColor: colorScheme.error,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15),
                     ),
                   ),
                   onPressed: () => Navigator.pop(context, false),
-                  child: const Text(
+                  child: Text(
                     'Cancel',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: colorScheme.onError,
                       fontFamily: 'ComicNeue',
                     ),
                   ),
@@ -598,11 +580,11 @@ class ConfirmationDialog extends StatelessWidget {
 class UploadSuccessSnackBar extends SnackBar {
   UploadSuccessSnackBar()
     : super(
-        content: const Row(
+        content: Row(
           children: [
-            Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 10),
-            Text(
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 10),
+            const Text(
               "Yay! New profile picture saved!",
               style: TextStyle(fontFamily: 'ComicNeue'),
             ),

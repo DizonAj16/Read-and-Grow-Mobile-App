@@ -18,18 +18,23 @@ class LoadingWidget extends StatefulWidget {
 class _LoadingWidgetState extends State<LoadingWidget> {
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24.0),
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: colorScheme.surface,
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: Colors.blue.shade100, width: 2),
+            border: Border.all(
+              color: colorScheme.primary.withOpacity(0.3),
+              width: 2,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.blue.shade50.withOpacity(0.4),
+                color: colorScheme.primary.withOpacity(0.1),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -38,11 +43,12 @@ class _LoadingWidgetState extends State<LoadingWidget> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildLoadingAnimation(),
+              _buildLoadingAnimation(colorScheme),
               const SizedBox(height: 20),
-              _buildLoadingText(),
+              _buildLoadingText(colorScheme),
               const SizedBox(height: 20),
-              if (widget.currentFunFact.isNotEmpty) _buildFunFactSection(),
+              if (widget.currentFunFact.isNotEmpty)
+                _buildFunFactSection(colorScheme),
             ],
           ),
         ),
@@ -50,15 +56,15 @@ class _LoadingWidgetState extends State<LoadingWidget> {
     );
   }
 
-  Widget _buildLoadingAnimation() {
+  Widget _buildLoadingAnimation(ColorScheme colorScheme) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.lightBlue.shade100,
+            color: colorScheme.primary.withOpacity(0.2),
             blurRadius: 12,
             spreadRadius: 1,
           ),
@@ -74,13 +80,13 @@ class _LoadingWidgetState extends State<LoadingWidget> {
     );
   }
 
-  Widget _buildLoadingText() {
+  Widget _buildLoadingText(ColorScheme colorScheme) {
     return Text(
       "Getting your classroom ready...",
       style: TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.bold,
-        color: Colors.indigo.shade700,
+        color: colorScheme.primary,
         fontFamily: 'ComicNeue',
         letterSpacing: 0.5,
       ),
@@ -88,27 +94,33 @@ class _LoadingWidgetState extends State<LoadingWidget> {
     );
   }
 
-  Widget _buildFunFactSection() {
+  Widget _buildFunFactSection(ColorScheme colorScheme) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.orange.shade50.withOpacity(0.6),
+        color: colorScheme.secondaryContainer.withOpacity(0.6),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.orange.shade100),
+        border: Border.all(
+          color: colorScheme.secondaryContainer,
+        ),
       ),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.lightbulb, color: Colors.orange, size: 20),
+              Icon(
+                Icons.lightbulb,
+                color: colorScheme.secondary,
+                size: 20,
+              ),
               SizedBox(width: 6),
               Text(
                 "Fun Fact!",
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: Colors.orange.shade800,
+                  color: colorScheme.secondary,
                   fontFamily: 'ComicNeue',
                 ),
               ),
@@ -120,7 +132,7 @@ class _LoadingWidgetState extends State<LoadingWidget> {
                     height: 16,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.orange,
+                      color: colorScheme.secondary,
                     ),
                   ),
                 ),
@@ -132,7 +144,7 @@ class _LoadingWidgetState extends State<LoadingWidget> {
             style: TextStyle(
               fontSize: 14,
               fontStyle: FontStyle.italic,
-              color: Colors.deepPurple.shade600,
+              color: colorScheme.onSecondaryContainer,
               fontFamily: 'ComicNeue',
             ),
             textAlign: TextAlign.center,

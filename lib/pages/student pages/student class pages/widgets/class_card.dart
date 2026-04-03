@@ -27,6 +27,8 @@ class ClassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return InkWell(
       onTap: () => _navigateToClassDetails(context),
       borderRadius: BorderRadius.circular(16),
@@ -34,6 +36,7 @@ class ClassCard extends StatelessWidget {
         elevation: 3,
         margin: const EdgeInsets.only(bottom: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: colorScheme.surface,
         child: Container(
           height: 150,
           decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
@@ -142,26 +145,28 @@ class ClassCard extends StatelessWidget {
   }
 
   Widget _buildTeacherInfo(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Row(
       children: [
         teacherAvatar != null && teacherAvatar!.isNotEmpty
             ? CircleAvatar(
-              radius: 14,
-              backgroundImage: NetworkImage(teacherAvatar!),
-              backgroundColor: Colors.grey[200],
-            )
+                radius: 14,
+                backgroundImage: NetworkImage(teacherAvatar!),
+                backgroundColor: colorScheme.surfaceVariant,
+              )
             : CircleAvatar(
-              radius: 14,
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              child: Text(
-                teacherName.isNotEmpty ? teacherName[0].toUpperCase() : '?',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
+                radius: 14,
+                backgroundColor: colorScheme.primary,
+                child: Text(
+                  teacherName.isNotEmpty ? teacherName[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
         const SizedBox(width: 8),
         Text(
           teacherName,
@@ -183,7 +188,6 @@ class ClassCard extends StatelessWidget {
   }
 
   Widget _buildBackgroundImage() {
-    // Use realBackgroundImage if it's a network URL, otherwise fall back to asset
     if (realBackgroundImage.startsWith('http://') || 
         realBackgroundImage.startsWith('https://')) {
       return Image.network(
@@ -192,7 +196,6 @@ class ClassCard extends StatelessWidget {
         height: 150,
         width: double.infinity,
         errorBuilder: (context, error, stackTrace) {
-          // Fallback to asset if network image fails
           return Image.asset(
             backgroundImage,
             fit: BoxFit.cover,
@@ -218,7 +221,6 @@ class ClassCard extends StatelessWidget {
         },
       );
     } else {
-      // Use asset image
       return Image.asset(
         realBackgroundImage.isNotEmpty ? realBackgroundImage : backgroundImage,
         fit: BoxFit.cover,

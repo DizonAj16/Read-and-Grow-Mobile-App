@@ -2042,6 +2042,7 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
     if (quizHelper?.timeRemaining == null || quizHelper!.timeRemaining <= 0) {
       return const SizedBox();
     }
+    final colorScheme = Theme.of(context).colorScheme;
 
     final timeRemaining = quizHelper!.timeRemaining;
     final isLast10Seconds = timeRemaining <= 10;
@@ -2054,17 +2055,23 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
         vertical: isLast10Seconds ? 10 : 6,
       ),
       decoration: BoxDecoration(
-        color: isLast10Seconds ? Colors.red.shade100 : Colors.red.shade50,
+        color:
+            isLast10Seconds
+                ? colorScheme.errorContainer.withOpacity(0.3)
+                : colorScheme.errorContainer.withOpacity(0.1),
         borderRadius: BorderRadius.circular(isLast10Seconds ? 20 : 16),
         border: Border.all(
-          color: isLast10Seconds ? Colors.red : Colors.red.shade200,
+          color:
+              isLast10Seconds
+                  ? colorScheme.error
+                  : colorScheme.error.withOpacity(0.5),
           width: isLast10Seconds ? 2 : 1,
         ),
         boxShadow:
             isLast10Seconds
                 ? [
                   BoxShadow(
-                    color: Colors.red.withOpacity(0.3),
+                    color: colorScheme.error.withOpacity(0.3),
                     blurRadius: 8,
                     spreadRadius: 2,
                     offset: const Offset(0, 2),
@@ -2078,14 +2085,14 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
           Icon(
             Icons.timer,
             size: isLast10Seconds ? 20 : 16,
-            color: isLast10Seconds ? Colors.red : Colors.red.shade700,
+            color: isLast10Seconds ? colorScheme.error : colorScheme.error,
           ),
           const SizedBox(width: 6),
           AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 300),
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: isLast10Seconds ? Colors.red : Colors.red.shade700,
+              color: isLast10Seconds ? colorScheme.error : colorScheme.error,
               fontSize: isLast10Seconds ? 18 : 14,
             ),
             child: Text(_formatTime(timeRemaining)),
@@ -2100,6 +2107,8 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
   }
 
   Widget _buildQuestionWidget(QuizQuestion question) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     switch (question.type) {
       case QuestionType.audio:
         return AudioRecorderWidget(
@@ -2154,6 +2163,8 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 4),
                 elevation: 1,
+                color: colorScheme.surface,
+
                 child: RadioListTile<String>(
                   title:
                       hasImage
@@ -2724,6 +2735,8 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
   }
 
   Widget _buildProgressIndicator() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -2731,19 +2744,18 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
           LinearProgressIndicator(
             value: (currentQuestionIndex + 1) / questions.length,
             backgroundColor: Colors.grey.shade300,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              Theme.of(context).colorScheme.primary,
-            ),
+            valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+
             minHeight: 8,
             borderRadius: BorderRadius.circular(4),
           ),
           const SizedBox(height: 8),
           Text(
             'Question ${currentQuestionIndex + 1} of ${questions.length}',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: Colors.grey,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -2891,14 +2903,16 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
   }
 
   Widget _buildNavigationButtons() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         border: Border(top: BorderSide(color: Colors.grey.shade300)),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: colorScheme.shadow.withOpacity(0.1),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
@@ -2913,22 +2927,17 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
                   currentQuestionIndex > 0 ? _goToPreviousQuestion : null,
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                side: BorderSide(color: Theme.of(context).colorScheme.primary),
+                side: BorderSide(color: colorScheme.primary),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.arrow_back,
-                    size: 18,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+                  Icon(Icons.arrow_back, size: 18, color: colorScheme.primary),
+
                   const SizedBox(width: 8),
                   Text(
                     'Previous',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                    style: TextStyle(color: colorScheme.primary),
                   ),
                 ],
               ),
@@ -2946,7 +2955,8 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
                       : null,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                backgroundColor: Theme.of(context).colorScheme.primary,
+                backgroundColor: colorScheme.primary,
+                disabledBackgroundColor: colorScheme.surfaceVariant,
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -2955,16 +2965,14 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
                     currentQuestionIndex < questions.length - 1
                         ? 'Next'
                         : 'Submit Quiz',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onPrimary,
-                    ),
+                    style: TextStyle(color: colorScheme.onPrimary),
                   ),
                   if (currentQuestionIndex < questions.length - 1) ...[
                     const SizedBox(width: 8),
                     Icon(
                       Icons.arrow_forward,
                       size: 18,
-                      color: Theme.of(context).colorScheme.onPrimary,
+                      color: colorScheme.onPrimary,
                     ),
                   ],
                 ],
@@ -3150,6 +3158,8 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
                 color: Theme.of(context).colorScheme.onPrimary,
               ),
               onPressed: () async {
+                final colorScheme = Theme.of(context).colorScheme;
+
                 // Show the same confirmation dialog when exit button is pressed
                 final shouldExit = await showDialog<bool>(
                   context: context,
@@ -3158,16 +3168,12 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
                       (context) => AlertDialog(
                         title: Row(
                           children: [
-                            Icon(
-                              Icons.warning,
-                              color: Theme.of(context).colorScheme.error,
-                            ),
+                            Icon(Icons.warning, color: colorScheme.error),
+
                             const SizedBox(width: 8),
                             Text(
                               'Exit Quiz?',
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
-                              ),
+                              style: TextStyle(color: colorScheme.error),
                             ),
                           ],
                         ),
@@ -3181,38 +3187,37 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
                             const SizedBox(height: 8),
                             Text(
                               'You have answered ${_getAnsweredQuestionsCount()} out of ${questions.length} questions.',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14,
-                                color: Colors.grey,
+                                color: colorScheme.onSurfaceVariant,
                               ),
                             ),
                             const SizedBox(height: 12),
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.errorContainer.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: Theme.of(context).colorScheme.error,
+                                color: colorScheme.errorContainer.withOpacity(
+                                  0.2,
                                 ),
+
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: colorScheme.error),
                               ),
                               child: Row(
                                 children: [
                                   Icon(
                                     Icons.info,
-                                    color: Theme.of(context).colorScheme.error,
+                                    color: colorScheme.error,
                                     size: 20,
                                   ),
+
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       'Your progress will NOT be saved and this attempt will NOT be recorded.',
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color:
-                                            Theme.of(context).colorScheme.error,
+                                        color: colorScheme.error,
                                       ),
                                     ),
                                   ),
@@ -3229,14 +3234,11 @@ class _StudentQuizPageState extends State<StudentQuizPage> {
                           ElevatedButton(
                             onPressed: () => Navigator.pop(context, true),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  Theme.of(context).colorScheme.error,
+                              backgroundColor: colorScheme.error,
                             ),
                             child: Text(
                               'Exit Quiz',
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.onError,
-                              ),
+                              style: TextStyle(color: colorScheme.onError),
                             ),
                           ),
                         ],

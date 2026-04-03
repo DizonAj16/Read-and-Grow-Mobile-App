@@ -58,14 +58,14 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
       label: 'Progress',
     ), // New progress tab
     _TabItem(
-      icon: Icons.analytics_outlined,
-      activeIcon: Icons.analytics,
-      label: 'Analytics',
-    ),
-    _TabItem(
       icon: Icons.edit_note_outlined,
       activeIcon: Icons.edit_note,
       label: 'Essays',
+    ),
+    _TabItem(
+      icon: Icons.analytics_outlined,
+      activeIcon: Icons.analytics,
+      label: 'Analytics',
     ),
   ];
 
@@ -609,24 +609,18 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
             ),
             MaterialsPage(classId: widget.classDetails['id'].toString()),
             TasksPage(classId: widget.classDetails['id'].toString()),
-            // // Add the 3 new pages here - pass classId to filter content by classroom
-            // ReadingRecordingsGradingPage(classId: widget.classDetails['id'].toString()),
-            // ViewGradedRecordingsPage(classId: widget.classDetails['id'].toString()),
             TeacherReadingMaterialsPage(
               classId: widget.classDetails['id'].toString(),
             ),
-            // Add the new reading progress page
             StudentReadingProgressPage(
               classId: widget.classDetails['id'].toString(),
             ),
-            // In ClassDetailsPage, update the ClassAnalyticsPage constructor call:
-            // In the ClassAnalyticsPage constructor call:
+            EssayGradingTabPage(classId: widget.classDetails['id'].toString()),
             ClassAnalyticsPage(
               classId: widget.classDetails['id'].toString(),
               teacherId:
-                  widget.classDetails['teacher_id'].toString(), // If available
+                  widget.classDetails['teacher_id'].toString(),
             ),
-            EssayGradingTabPage(classId: widget.classDetails['id'].toString()),
           ],
         ),
       ),

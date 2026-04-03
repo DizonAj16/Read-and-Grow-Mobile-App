@@ -22,19 +22,23 @@ class StudentDashboardHorizontalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveIconColor = iconColor ?? Colors.white;
-    final effectiveTextColor = textColor ?? Colors.white;
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    // Use provided colors or fallback to theme-appropriate colors
+    final effectiveIconColor = iconColor ?? colorScheme.onPrimary;
+    final effectiveTextColor = textColor ?? colorScheme.onPrimary;
     
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
-      shadowColor: Colors.black.withOpacity(0.2),
+      shadowColor: colorScheme.shadow.withOpacity(0.3),
+      color: Colors.transparent, // Make card transparent to show gradient
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: onPressed,
-        splashColor: effectiveTextColor.withOpacity(0.1),
+        splashColor: effectiveTextColor.withOpacity(0.2),
         highlightColor: Colors.transparent,
         child: Container(
           width: 170,
@@ -47,6 +51,11 @@ class StudentDashboardHorizontalCard extends StatelessWidget {
               stops: const [0.1, 0.9],
             ),
             borderRadius: BorderRadius.circular(20),
+            // Optional: Add subtle border for depth
+            border: Border.all(
+              color: effectiveTextColor.withOpacity(0.2),
+              width: 0.5,
+            ),
           ),
           padding: const EdgeInsets.all(20.0),
           child: Column(

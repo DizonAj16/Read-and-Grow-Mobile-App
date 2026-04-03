@@ -445,9 +445,11 @@ class _LessonReaderPageState extends State<LessonReaderPage> {
   }
 
   Widget _buildVideoControls() {
+      final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: Theme.of(context).colorScheme.surface,
+    color: colorScheme.surface,
       child: Column(
         children: [
           VideoProgressIndicator(
@@ -525,6 +527,8 @@ class _LessonReaderPageState extends State<LessonReaderPage> {
   }
 
   Widget _buildAudioPlayer() {
+      final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: EdgeInsets.all(24),
       child: Column(
@@ -539,13 +543,13 @@ class _LessonReaderPageState extends State<LessonReaderPage> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Theme.of(context).colorScheme.primary,
-                  Theme.of(context).colorScheme.primaryContainer,
+                colorScheme.primary,
+                colorScheme.primaryContainer,
                 ],
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                  color: colorScheme.primary.withOpacity(0.3),
                   blurRadius: 20,
                   spreadRadius: 5,
                 ),
@@ -554,7 +558,7 @@ class _LessonReaderPageState extends State<LessonReaderPage> {
             child: Icon(
               _isAudioPlaying ? Icons.music_note : Icons.music_off,
               size: 48,
-              color: Theme.of(context).colorScheme.onPrimary,
+              color: colorScheme.onPrimary,
             ),
           ),
           SizedBox(height: 32),
@@ -563,7 +567,7 @@ class _LessonReaderPageState extends State<LessonReaderPage> {
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
+              color: colorScheme.onSurface,
             ),
           ),
           SizedBox(height: 8),

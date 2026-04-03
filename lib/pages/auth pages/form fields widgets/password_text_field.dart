@@ -83,7 +83,7 @@ class _PasswordTextFieldState extends State<PasswordTextField> {
         ),
         errorStyle: TextStyle(
           color: Colors.red,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.normal,
           fontSize: 13,
         ),
         contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),

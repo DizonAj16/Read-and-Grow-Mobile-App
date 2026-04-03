@@ -125,21 +125,23 @@ class _StudentPageState extends State<StudentPage> {
   }
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return AppBar(
       title: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
         child: Text(
           _pageTitles[_currentIndex],
           key: ValueKey(_currentIndex),
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: colorScheme.onPrimary,
             fontWeight: FontWeight.w600,
             fontSize: 18,
           ),
         ),
       ),
-      backgroundColor: Theme.of(context).colorScheme.primary,
-      iconTheme: const IconThemeData(color: Colors.white),
+      backgroundColor: colorScheme.primary,
+      iconTheme: IconThemeData(color: colorScheme.onPrimary),
       actions: [
         _ProfilePopupMenu(
           onLogout: _showLogoutConfirmation,
@@ -147,7 +149,7 @@ class _StudentPageState extends State<StudentPage> {
         ),
       ],
       elevation: 4,
-      shadowColor: Colors.black.withOpacity(0.3),
+      shadowColor: colorScheme.shadow.withOpacity(0.3),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           bottom: Radius.circular(20),
@@ -170,8 +172,8 @@ class _StudentPageState extends State<StudentPage> {
   }
 
   ClipRRect _buildBottomNavigationBar(BuildContext context) {
-    final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
+    final colorScheme = Theme.of(context).colorScheme;
+    final primaryColor = colorScheme.primary;
     final primaryVariant = Color.alphaBlend(
       primaryColor.withOpacity(0.7),
       Colors.black,
@@ -193,7 +195,7 @@ class _StudentPageState extends State<StudentPage> {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.25),
+              color: colorScheme.shadow.withOpacity(0.25),
               blurRadius: 15,
               spreadRadius: 3,
               offset: const Offset(0, -3),
@@ -201,7 +203,7 @@ class _StudentPageState extends State<StudentPage> {
           ],
           border: Border(
             top: BorderSide(
-              color: Colors.white.withOpacity(0.1),
+              color: colorScheme.onPrimary.withOpacity(0.1),
               width: 1,
             ),
           ),
@@ -209,9 +211,9 @@ class _StudentPageState extends State<StudentPage> {
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: _onTabTapped,
-          items: _buildBottomNavItems(),
-          selectedItemColor: Colors.white,
-          unselectedItemColor: Colors.white.withOpacity(0.7),
+          items: _buildBottomNavItems(colorScheme),
+          selectedItemColor: colorScheme.onPrimary,
+          unselectedItemColor: colorScheme.onPrimary.withOpacity(0.7),
           showUnselectedLabels: true,
           showSelectedLabels: true,
           type: BottomNavigationBarType.fixed,
@@ -220,11 +222,13 @@ class _StudentPageState extends State<StudentPage> {
             fontWeight: FontWeight.w700,
             fontSize: 12,
             letterSpacing: 0.5,
+            color: colorScheme.onPrimary,
           ),
           unselectedLabelStyle: TextStyle(
             fontWeight: FontWeight.w500,
             fontSize: 12,
             letterSpacing: 0.3,
+            color: colorScheme.onPrimary.withOpacity(0.7),
           ),
           backgroundColor: Colors.transparent,
           iconSize: 26,
@@ -235,12 +239,12 @@ class _StudentPageState extends State<StudentPage> {
     );
   }
 
-  List<BottomNavigationBarItem> _buildBottomNavItems() {
+  List<BottomNavigationBarItem> _buildBottomNavItems(ColorScheme colorScheme) {
     return [
       BottomNavigationBarItem(
         icon: Container(
           padding: const EdgeInsets.all(8),
-          child: const Icon(Icons.home_outlined),
+          child: Icon(Icons.home_outlined, color: colorScheme.onPrimary),
         ),
         activeIcon: Container(
           padding: const EdgeInsets.all(8),
@@ -248,28 +252,28 @@ class _StudentPageState extends State<StudentPage> {
             shape: BoxShape.circle,
             gradient: LinearGradient(
               colors: [
-                Colors.white.withOpacity(0.3),
-                Colors.white.withOpacity(0.1),
+                colorScheme.onPrimary.withOpacity(0.3),
+                colorScheme.onPrimary.withOpacity(0.1),
               ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.white.withOpacity(0.3),
+                color: colorScheme.onPrimary.withOpacity(0.3),
                 blurRadius: 8,
                 spreadRadius: 1,
               ),
             ],
           ),
-          child: const Icon(Icons.home),
+          child: Icon(Icons.home, color: colorScheme.onPrimary),
         ),
         label: "Dashboard",
       ),
       BottomNavigationBarItem(
         icon: Container(
           padding: const EdgeInsets.all(8),
-          child: const Icon(Icons.class_outlined),
+          child: Icon(Icons.class_outlined, color: colorScheme.onPrimary),
         ),
         activeIcon: Container(
           padding: const EdgeInsets.all(8),
@@ -277,21 +281,21 @@ class _StudentPageState extends State<StudentPage> {
             shape: BoxShape.circle,
             gradient: LinearGradient(
               colors: [
-                Colors.white.withOpacity(0.3),
-                Colors.white.withOpacity(0.1),
+                colorScheme.onPrimary.withOpacity(0.3),
+                colorScheme.onPrimary.withOpacity(0.1),
               ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.white.withOpacity(0.3),
+                color: colorScheme.onPrimary.withOpacity(0.3),
                 blurRadius: 8,
                 spreadRadius: 1,
               ),
             ],
           ),
-          child: const Icon(Icons.class_),
+          child: Icon(Icons.class_, color: colorScheme.onPrimary),
         ),
         label: "My Class",
       ),
@@ -394,6 +398,8 @@ class _ProfilePopupMenuState extends State<_ProfilePopupMenu> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return PopupMenuButton<String>(
       icon: _buildProfileAvatar(radius: 16),
       tooltip: "Student Profile",
@@ -401,8 +407,8 @@ class _ProfilePopupMenuState extends State<_ProfilePopupMenu> {
       itemBuilder: (context) => _buildMenuItems(context),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 8,
-      color: Theme.of(context).colorScheme.surface,
-      shadowColor: Colors.black.withOpacity(0.2),
+      color: colorScheme.surface,
+      shadowColor: colorScheme.shadow.withOpacity(0.2),
     );
   }
 
@@ -448,7 +454,7 @@ class _ProfilePopupMenuState extends State<_ProfilePopupMenu> {
 
   List<PopupMenuEntry<String>> _buildMenuItems(BuildContext context) {
     final theme = Theme.of(context);
-    final textColor = theme.colorScheme.onSurface;
+    final colorScheme = theme.colorScheme;
     final studentName = _student?.studentName ?? "Student";
 
     return [
@@ -466,7 +472,7 @@ class _ProfilePopupMenuState extends State<_ProfilePopupMenu> {
                 studentName,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: textColor,
+                  color: colorScheme.onSurface,
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 2,
@@ -475,7 +481,7 @@ class _ProfilePopupMenuState extends State<_ProfilePopupMenu> {
               Text(
                 'Student',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: textColor.withOpacity(0.6),
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -492,12 +498,12 @@ class _ProfilePopupMenuState extends State<_ProfilePopupMenu> {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              Icon(Icons.logout, size: 20, color: Colors.red),
+              Icon(Icons.logout, size: 20, color: colorScheme.error),
               const SizedBox(width: 12),
               Text(
                 'Logout',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.red,
+                  color: colorScheme.error,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -509,23 +515,23 @@ class _ProfilePopupMenuState extends State<_ProfilePopupMenu> {
   }
 
   Widget _buildProfileAvatar({required double radius}) {
+    final colorScheme = Theme.of(context).colorScheme;
     final studentName = _student?.studentName ?? "Student";
     
-    // NEW: Generate initials from first letter of each word in full name
     final String initials = _generateInitials(studentName);
 
     return CircleAvatar(
       radius: radius,
       backgroundColor: _profilePictureUrl == null
-          ? Theme.of(context).colorScheme.primary
+          ? colorScheme.primary
           : null,
       child: _profilePictureUrl == null
           ? Text(
               initials,
               style: TextStyle(
-                color: Colors.white,
+                color: colorScheme.onPrimary,
                 fontWeight: FontWeight.bold,
-                fontSize: radius * 0.7, // Slightly smaller for 2+ letters
+                fontSize: radius * 0.7,
               ),
             )
           : ClipOval(
@@ -537,12 +543,12 @@ class _ProfilePopupMenuState extends State<_ProfilePopupMenu> {
                 height: radius * 2,
                 imageErrorBuilder: (context, error, stackTrace) {
                   return Container(
-                    color: Theme.of(context).colorScheme.primary,
+                    color: colorScheme.primary,
                     child: Center(
                       child: Text(
                         initials,
                         style: TextStyle(
-                          color: Colors.white,
+                          color: colorScheme.onPrimary,
                           fontWeight: FontWeight.bold,
                           fontSize: radius * 0.7,
                         ),
@@ -557,20 +563,16 @@ class _ProfilePopupMenuState extends State<_ProfilePopupMenu> {
     );
   }
 
-  // NEW: Helper function to generate initials from full name
   String _generateInitials(String fullName) {
     if (fullName.isEmpty) return "S";
     
-    // Split the name by spaces and filter out empty strings
     final nameParts = fullName.trim().split(' ').where((part) => part.isNotEmpty).toList();
     
     if (nameParts.isEmpty) return "S";
     
     if (nameParts.length == 1) {
-      // Single name: return first letter
       return nameParts[0][0].toUpperCase();
     } else {
-      // Multiple names: return first letter of first and last name
       return '${nameParts.first[0]}${nameParts.last[0]}'.toUpperCase();
     }
   }
@@ -584,17 +586,19 @@ class _ProfileModalContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       child: FractionallySizedBox(
         heightFactor: heightFactor,
         child: Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
+            color: colorScheme.surface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.25),
+                color: colorScheme.shadow.withOpacity(0.25),
                 blurRadius: 32,
                 spreadRadius: 4,
                 offset: const Offset(0, -8),
@@ -613,8 +617,10 @@ class _LogoutProgressDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Dialog(
-      backgroundColor: Colors.white,
+      backgroundColor: colorScheme.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 32),
@@ -623,15 +629,13 @@ class _LogoutProgressDialog extends StatelessWidget {
           children: [
             CircularProgressIndicator(
               strokeWidth: 3,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                Theme.of(context).colorScheme.primary,
-              ),
+              valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
             ),
             const SizedBox(height: 24),
             Text(
               "Logging out...",
               style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
+                color: colorScheme.primary,
                 fontWeight: FontWeight.bold,
                 fontSize: 18,
               ),
@@ -648,14 +652,23 @@ class _LogoutErrorDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('Logout Failed'),
-      content: const Text('Unable to logout. Please try again.'),
+      backgroundColor: colorScheme.surface,
+      title: Text(
+        'Logout Failed',
+        style: TextStyle(color: colorScheme.onSurface),
+      ),
+      content: Text(
+        'Unable to logout. Please try again.',
+        style: TextStyle(color: colorScheme.onSurfaceVariant),
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('OK'),
+          child: Text('OK', style: TextStyle(color: colorScheme.primary)),
         ),
       ],
     );
@@ -673,13 +686,16 @@ class _LogoutConfirmationDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      backgroundColor: colorScheme.surface,
       title: Column(
         children: [
           Icon(
             Icons.logout,
-            color: Theme.of(context).colorScheme.primary,
+            color: colorScheme.primary,
             size: 48,
           ),
           const SizedBox(height: 16),
@@ -688,14 +704,14 @@ class _LogoutConfirmationDialog extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .titleLarge
-                ?.copyWith(fontWeight: FontWeight.bold),
+                ?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
           ),
         ],
       ),
       content: Text(
         "We hope to see you again soon! Are you sure you want to log out?",
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface,
+              color: colorScheme.onSurfaceVariant,
             ),
         textAlign: TextAlign.center,
       ),
@@ -713,7 +729,7 @@ class _LogoutConfirmationDialog extends StatelessWidget {
             _DialogButton(
               icon: Icons.logout,
               text: "Log Out",
-              color: Theme.of(context).colorScheme.error,
+              color: colorScheme.error,
               onPressed: onLogout,
             ),
           ],

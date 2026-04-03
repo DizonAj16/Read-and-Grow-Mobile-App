@@ -1242,7 +1242,7 @@ class _EnhancedReadingMaterialPageState
                       isRetakeInProgress
                           ? 'Record Retake'
                           : widget.classId != null
-                          ? 'Record Reading (Class)'
+                          ? 'Record Reading'
                           : 'Record Your Reading',
                       style: TextStyle(
                         fontSize: 16,
@@ -1383,7 +1383,7 @@ class _EnhancedReadingMaterialPageState
                                       ? 'Recording for class assignment'
                                       : hasRecording
                                       ? 'Class recording is saved'
-                                      : 'Record your reading for class'
+                                      : 'Record your reading'
                                   : isRecording
                                   ? 'Speak clearly into the microphone'
                                   : hasRecording
@@ -1488,7 +1488,7 @@ class _EnhancedReadingMaterialPageState
                           isRetakeInProgress
                               ? 'Submit Retake'
                               : widget.classId != null
-                              ? 'Submit to Class'
+                              ? 'Submit'
                               : 'Submit',
                           style: TextStyle(fontSize: 14),
                         ),
@@ -2034,7 +2034,7 @@ class _EnhancedReadingMaterialPageState
       statusColor = Colors.orange;
       statusIcon = Icons.refresh;
       statusText =
-          isClassContext ? 'Class Retake Requested' : 'Retake Requested';
+          isClassContext ? 'Retake Requested' : 'Retake Requested';
       statusMessage =
           'Your teacher wants you to retake this reading. Record your new reading.';
     } else if (_isRetakeApproved) {
@@ -2046,7 +2046,7 @@ class _EnhancedReadingMaterialPageState
     } else if (_isGraded) {
       statusColor = Colors.green;
       statusIcon = Icons.grading;
-      statusText = isClassContext ? 'Class Reading Graded' : 'Reading Graded';
+      statusText = isClassContext ? 'Reading Graded' : 'Reading Graded';
       statusMessage = 'Your reading has been evaluated by your teacher.';
     } else {
       statusColor = Colors.orange;
@@ -2245,7 +2245,7 @@ class _EnhancedReadingMaterialPageState
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Class Reading Assignment',
+                      'Reading Assignment',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -2384,10 +2384,10 @@ class _EnhancedReadingMaterialPageState
                                 child: Text(
                                   isClassContext
                                       ? (_isPdf
-                                          ? 'Class Reading Material (PDF)'
+                                          ? 'Reading Material (PDF)'
                                           : _isImage
-                                          ? 'Class Reading Material (Image)'
-                                          : 'Class Reading Material')
+                                          ? 'Reading Material (Image)'
+                                          : 'Reading Material')
                                       : (_isPdf
                                           ? 'Reading Material (PDF)'
                                           : _isImage
@@ -2761,7 +2761,7 @@ class _EnhancedReadingMaterialPageState
       appBar: AppBar(
         title: Text(
           isClassContext
-              ? 'Class Reading'
+              ? '${widget.material['title'] ?? 'Class Reading Material'}'
               : widget.material['title'] ?? 'Reading Material',
           style: TextStyle(
             color: colorScheme.onPrimary,
@@ -2794,9 +2794,9 @@ class _EnhancedReadingMaterialPageState
                 ),
                 label: Text(
                   isRetakeRequired
-                      ? (isClassContext ? 'Class Retake' : 'Retake')
+                      ? (isClassContext ? 'Retake' : 'Retake')
                       : isClassContext
-                      ? 'Class Record'
+                      ? 'Record'
                       : 'Recording Tools',
                 ),
                 backgroundColor:

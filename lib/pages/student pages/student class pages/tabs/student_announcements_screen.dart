@@ -1,6 +1,5 @@
 // screens/student_announcements_screen.dart
 import 'package:deped_reading_app_laravel/api/classroom_service.dart';
-import 'package:deped_reading_app_laravel/constants.dart';
 import 'package:deped_reading_app_laravel/models/announcement_model.dart';
 import 'package:deped_reading_app_laravel/pages/teacher%20pages/teacher%20dashboard/cards/announcement_card.dart';
 import 'package:flutter/material.dart';
@@ -59,16 +58,18 @@ class _StudentAnnouncementsScreenState
   }
 
   void _showErrorSnackbar(String message) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: Theme.of(context).colorScheme.primary,
+        backgroundColor: colorScheme.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         content: Row(
           children: [
-            const Icon(Icons.error_outline, color: Colors.white),
+            Icon(Icons.error_outline, color: colorScheme.onError),
             const SizedBox(width: 8),
-            Text(message, style: const TextStyle(color: Colors.white)),
+            Text(message, style: TextStyle(color: colorScheme.onError)),
           ],
         ),
       ),
@@ -77,8 +78,10 @@ class _StudentAnnouncementsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Scaffold(
-      backgroundColor: Colors.lightBlue[50],
+      backgroundColor: colorScheme.surfaceVariant,
       body: Column(
         children: [
           _AnnouncementsHeader(
@@ -89,8 +92,8 @@ class _StudentAnnouncementsScreenState
             child: RefreshIndicator(
               key: _refreshIndicatorKey,
               onRefresh: _loadAnnouncements,
-              color: Theme.of(context).colorScheme.primary,
-              backgroundColor: Colors.white,
+              color: colorScheme.primary,
+              backgroundColor: colorScheme.surface,
               child: _AnnouncementsListContent(
                 isLoading: _isLoading,
                 hasError: _hasError,
@@ -116,14 +119,16 @@ class _AnnouncementsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return ClipPath(
       clipper: WaveClipperOne(reverse: false),
       child: Container(
         height: 140,
         width: double.infinity,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [kPrimaryColor, Color(0xFFB71C1C)],
+            colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.7)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -133,12 +138,12 @@ class _AnnouncementsHeader extends StatelessWidget {
           children: [
             Text(
               "Announcements",
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: colorScheme.onPrimary,
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
                 fontFamily: 'ComicNeue',
-                shadows: [
+                shadows: const [
                   Shadow(
                     color: Colors.black26,
                     blurRadius: 4,
@@ -150,8 +155,8 @@ class _AnnouncementsHeader extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               "$announcementCount announcement${announcementCount != 1 ? 's' : ''}",
-              style: const TextStyle(
-                color: Colors.white70,
+              style: TextStyle(
+                color: colorScheme.onPrimary.withOpacity(0.8),
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),
@@ -215,6 +220,8 @@ class _AnnouncementsLoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -229,7 +236,7 @@ class _AnnouncementsLoadingView extends StatelessWidget {
             "Loading Announcements...",
             style: TextStyle(
               fontSize: 16,
-              color: Theme.of(context).colorScheme.primary,
+              color: colorScheme.primary,
               fontFamily: 'ComicNeue',
             ),
           ),
@@ -245,6 +252,8 @@ class _AnnouncementsErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -259,7 +268,7 @@ class _AnnouncementsErrorView extends StatelessWidget {
             "Failed to load announcements",
             style: TextStyle(
               fontSize: 18,
-              color: Theme.of(context).colorScheme.primary,
+              color: colorScheme.error,
               fontWeight: FontWeight.bold,
               fontFamily: 'ComicNeue',
             ),
@@ -268,8 +277,8 @@ class _AnnouncementsErrorView extends StatelessWidget {
           ElevatedButton(
             onPressed: onRetry,
             style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor: Colors.white,
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -290,8 +299,11 @@ class _AnnouncementsEmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final mediaQuery = MediaQuery.of(context);
+    
     return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.7,
+      height: mediaQuery.size.height * 0.7,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -305,20 +317,20 @@ class _AnnouncementsEmptyView extends StatelessWidget {
             "No announcements yet!",
             style: TextStyle(
               fontSize: 22,
-              color: Theme.of(context).colorScheme.primary,
+              color: colorScheme.primary,
               fontWeight: FontWeight.bold,
               fontFamily: 'ComicNeue',
             ),
           ),
           const SizedBox(height: 10),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 40),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
               'Your teacher will post important updates and announcements here',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey,
+                color: colorScheme.onSurfaceVariant,
                 fontFamily: 'ComicNeue',
               ),
             ),

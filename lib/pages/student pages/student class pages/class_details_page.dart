@@ -38,14 +38,14 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
   final PageController _pageController = PageController();
   final ScrollController _scrollController = ScrollController();
   double _appBarOpacity = 0.0;
-  
+
   // User data
   final user = Supabase.instance.client.auth.currentUser;
-  
+
   // Pending tasks state
   int _pendingTasksCount = 0;
   bool _isLoadingPendingCount = true;
-  
+
   // Pending reading materials state
   int _pendingReadingMaterialsCount = 0;
   bool _isLoadingReadingMaterialsCount = true;
@@ -98,7 +98,7 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
         _currentIndex = index;
       });
     }
-    
+
     _pageController.animateToPage(
       index,
       duration: const Duration(milliseconds: 300),
@@ -122,9 +122,15 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
       body: NestedScrollView(
         controller: _scrollController,
         physics: const BouncingScrollPhysics(),
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          _buildSliverAppBar(context, theme, avatarColor, innerBoxIsScrolled),
-        ],
+        headerSliverBuilder:
+            (context, innerBoxIsScrolled) => [
+              _buildSliverAppBar(
+                context,
+                theme,
+                avatarColor,
+                innerBoxIsScrolled,
+              ),
+            ],
         body: _buildPageView(),
       ),
       bottomNavigationBar: _buildBottomNavigationBar(theme),
@@ -202,9 +208,10 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
           Colors.black.withOpacity(0.3),
           BlendMode.darken,
         ),
-        child: widget.backgroundImage.startsWith('http')
-            ? _buildNetworkImage(avatarColor)
-            : _buildAssetImage(avatarColor),
+        child:
+            widget.backgroundImage.startsWith('http')
+                ? _buildNetworkImage(avatarColor)
+                : _buildAssetImage(avatarColor),
       ),
     );
   }
@@ -234,14 +241,19 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
   }
 
   /// Build loading placeholder
-  Widget _buildLoadingPlaceholder(Color avatarColor, ImageChunkEvent? progress) {
+  Widget _buildLoadingPlaceholder(
+    Color avatarColor,
+    ImageChunkEvent? progress,
+  ) {
     return Container(
       color: avatarColor.withOpacity(0.2),
       child: Center(
         child: CircularProgressIndicator(
-          value: progress?.expectedTotalBytes != null
-              ? progress!.cumulativeBytesLoaded / progress.expectedTotalBytes!
-              : null,
+          value:
+              progress?.expectedTotalBytes != null
+                  ? progress!.cumulativeBytesLoaded /
+                      progress.expectedTotalBytes!
+                  : null,
           color: Colors.white,
         ),
       ),
@@ -253,11 +265,7 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
     return Container(
       color: avatarColor.withOpacity(0.2),
       child: const Center(
-        child: Icon(
-          Icons.image_not_supported,
-          color: Colors.white54,
-          size: 48,
-        ),
+        child: Icon(Icons.image_not_supported, color: Colors.white54, size: 48),
       ),
     );
   }
@@ -365,9 +373,14 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
   /// Build bottom navigation items
   List<BottomNavigationBarItem> _buildBottomNavigationItems(ThemeData theme) {
     return [
-      _buildBottomNavItem(0, Icons.announcement_outlined, "Announcements", theme),
+      _buildBottomNavItem(
+        0,
+        Icons.announcement_outlined,
+        "Announcements",
+        theme,
+      ),
       _buildBottomNavItem(1, Icons.task_outlined, "Tasks", theme),
-      _buildBottomNavItem(2, Icons.library_books_outlined, "Reading Level", theme),
+      _buildBottomNavItem(2, Icons.library_books_outlined, "Reading", theme),
       _buildBottomNavItem(3, Icons.book_outlined, "Materials", theme),
       _buildBottomNavItem(4, Icons.people_outline, "Classmates", theme),
       _buildBottomNavItem(5, Icons.person_outline, "Teacher", theme),
@@ -384,9 +397,21 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
     Widget iconWidget;
 
     if (index == 1 && _pendingTasksCount > 0) {
-      iconWidget = _buildBadgedIcon(icon, _pendingTasksCount, _isLoadingPendingCount, Colors.red, theme);
+      iconWidget = _buildBadgedIcon(
+        icon,
+        _pendingTasksCount,
+        _isLoadingPendingCount,
+        Colors.red,
+        theme,
+      );
     } else if (index == 2 && _pendingReadingMaterialsCount > 0) {
-      iconWidget = _buildBadgedIcon(icon, _pendingReadingMaterialsCount, _isLoadingReadingMaterialsCount, Colors.orange, theme);
+      iconWidget = _buildBadgedIcon(
+        icon,
+        _pendingReadingMaterialsCount,
+        _isLoadingReadingMaterialsCount,
+        Colors.orange,
+        theme,
+      );
     } else {
       iconWidget = Icon(icon);
     }
@@ -395,9 +420,10 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
       icon: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: _currentIndex == index
-              ? theme.colorScheme.primary.withOpacity(0.2)
-              : Colors.transparent,
+          color:
+              _currentIndex == index
+                  ? theme.colorScheme.primary.withOpacity(0.2)
+                  : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
         child: iconWidget,
@@ -423,9 +449,10 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
             top: -6,
             right: -8,
             child: Container(
-              padding: count > 9
-                  ? const EdgeInsets.symmetric(horizontal: 4, vertical: 2)
-                  : const EdgeInsets.all(4),
+              padding:
+                  count > 9
+                      ? const EdgeInsets.symmetric(horizontal: 4, vertical: 2)
+                      : const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: badgeColor,
                 borderRadius: BorderRadius.circular(12),
@@ -438,24 +465,25 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
                 minWidth: isLoading ? 16 : 18,
                 minHeight: isLoading ? 16 : 18,
               ),
-              child: isLoading
-                  ? SizedBox(
-                      width: 8,
-                      height: 8,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
+              child:
+                  isLoading
+                      ? SizedBox(
+                        width: 8,
+                        height: 8,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                      : Text(
+                        count > 99 ? '99+' : '$count',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                    )
-                  : Text(
-                      count > 99 ? '99+' : '$count',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
             ),
           ),
         ],
@@ -479,9 +507,9 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
   /// Load pending tasks count
   Future<void> _loadPendingTasksCount() async {
     if (!mounted) return;
-    
+
     setState(() => _isLoadingPendingCount = true);
-    
+
     try {
       final count = await _getPendingTasksCount();
       if (mounted) {
@@ -506,11 +534,12 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
       if (userId == null) return 0;
 
       // Get student.id from students table
-      final studentRow = await supabase
-          .from('students')
-          .select('id')
-          .eq('id', userId)
-          .maybeSingle();
+      final studentRow =
+          await supabase
+              .from('students')
+              .select('id')
+              .eq('id', userId)
+              .maybeSingle();
 
       if (studentRow == null) return 0;
       final String studentId = studentRow['id'] as String;
@@ -521,9 +550,10 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
           .select('class_room_id')
           .eq('student_id', studentId);
 
-      final classIds = (enrollments as List)
-          .map((e) => e['class_room_id'] as String)
-          .toList();
+      final classIds =
+          (enrollments as List)
+              .map((e) => e['class_room_id'] as String)
+              .toList();
 
       // Get all assignments for these classes
       List<String> assignedTaskIds = [];
@@ -592,7 +622,9 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
       Set<String> pendingTasksWithoutQuizzes =
           pendingTaskIds.where((id) => !tasksWithQuizzes.contains(id)).toSet();
       Set<String> completedTasksWithoutQuizzes =
-          completedTaskIds.where((id) => !tasksWithQuizzes.contains(id)).toSet();
+          completedTaskIds
+              .where((id) => !tasksWithQuizzes.contains(id))
+              .toSet();
 
       // Count newly assigned tasks (without quizzes)
       int newPendingTasks = 0;
@@ -656,9 +688,9 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
   /// Load pending reading materials count
   Future<void> _loadPendingReadingMaterialsCount() async {
     if (!mounted) return;
-    
+
     setState(() => _isLoadingReadingMaterialsCount = true);
-    
+
     try {
       final count = await _getPendingReadingMaterialsCount();
       if (mounted) {
@@ -683,13 +715,15 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
       if (user == null) return 0;
 
       // Get student's current reading level
-      final studentRes = await supabase
-          .from('students')
-          .select('id, current_reading_level_id')
-          .eq('id', user.id)
-          .maybeSingle();
+      final studentRes =
+          await supabase
+              .from('students')
+              .select('id, current_reading_level_id')
+              .eq('id', user.id)
+              .maybeSingle();
 
-      if (studentRes == null || studentRes['current_reading_level_id'] == null) {
+      if (studentRes == null ||
+          studentRes['current_reading_level_id'] == null) {
         return 0;
       }
 
@@ -712,17 +746,17 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
       });
 
       // Filter materials that are accessible (not locked by prerequisites)
-      final accessibleMaterials = materialsData
-          .where((data) => data['is_accessible'] as bool)
-          .toList();
+      final accessibleMaterials =
+          materialsData.where((data) => data['is_accessible'] as bool).toList();
 
       if (accessibleMaterials.isEmpty) return 0;
 
       // Get material IDs
-      final materialIds = accessibleMaterials
-          .map((data) => (data['material'] as ReadingMaterial).id)
-          .whereType<String>()
-          .toList();
+      final materialIds =
+          accessibleMaterials
+              .map((data) => (data['material'] as ReadingMaterial).id)
+              .whereType<String>()
+              .toList();
 
       // Get submitted materials
       final submissionsRes = await supabase
@@ -741,7 +775,8 @@ class _ClassDetailsPageState extends State<ClassDetailsPage> {
       }
 
       // Pending count = total accessible materials - submitted materials
-      final pendingCount = accessibleMaterials.length - submittedMaterialIds.length;
+      final pendingCount =
+          accessibleMaterials.length - submittedMaterialIds.length;
       return pendingCount > 0 ? pendingCount : 0;
     } catch (e) {
       debugPrint('Error getting pending reading materials count: $e');

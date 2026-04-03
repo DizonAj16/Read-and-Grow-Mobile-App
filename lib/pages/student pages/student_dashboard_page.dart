@@ -35,9 +35,9 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
   List<double> _recentScores = [];
   int _badgesCount = 0;
   String _levelDisplay = 'N/A';
-  String _levelNumber = 'N/A'; // ADD THIS LINE
+  String _levelNumber = 'N/A';
 
-  // Theme colors
+  // Theme colors - will be updated in didChangeDependencies
   late ColorScheme _colorScheme;
   Color get _primaryColor => _colorScheme.primary;
   Color get _onPrimaryColor => _colorScheme.onPrimary;
@@ -46,6 +46,9 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
   Color get _secondaryColor => _colorScheme.secondary;
   Color get _surfaceVariant => _colorScheme.surfaceVariant;
   Color get _surface => _colorScheme.surface;
+  Color get _errorColor => _colorScheme.error;
+  Color get _onSurface => _colorScheme.onSurface;
+  Color get _onSurfaceVariant => _colorScheme.onSurfaceVariant;
 
   @override
   void initState() {
@@ -133,12 +136,9 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               .toList();
 
       // Get all assignments for these classes
-      // Important: If a task has a quiz, we count the quiz, not the task (to avoid double counting)
-      List<String> assignedTaskIds = []; // Only tasks WITHOUT quizzes
-      List<String> assignedQuizIds =
-          []; // All quizzes (from tasks or directly linked)
-      Set<String> tasksWithQuizzes =
-          {}; // Track which tasks have quizzes (so we don't count them separately)
+      List<String> assignedTaskIds = [];
+      List<String> assignedQuizIds = [];
+      Set<String> tasksWithQuizzes = {};
 
       if (classIds.isNotEmpty) {
         final assignments = await supabase
@@ -147,16 +147,13 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             .inFilter('class_room_id', classIds);
 
         for (var assignment in assignments) {
-          // Handle quiz_id assignments (quizzes directly linked to assignment)
           final directQuizId = assignment['quiz_id'] as String?;
           if (directQuizId != null && !assignedQuizIds.contains(directQuizId)) {
             assignedQuizIds.add(directQuizId);
           }
 
-          // Handle task_id assignments
           final taskId = assignment['task_id'] as String?;
           if (taskId != null) {
-            // Check if this task has quizzes
             final task = assignment['tasks'] as Map<String, dynamic>?;
             bool taskHasQuiz = false;
 
@@ -165,7 +162,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               if (quizzes != null && quizzes.isNotEmpty) {
                 taskHasQuiz = true;
                 tasksWithQuizzes.add(taskId);
-                // Add quizzes from this task
                 for (var quiz in quizzes) {
                   final quizId = quiz['id'] as String?;
                   if (quizId != null && !assignedQuizIds.contains(quizId)) {
@@ -175,8 +171,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               }
             }
 
-            // Only add task to assignedTaskIds if it doesn't have a quiz
-            // Tasks with quizzes are counted via their quizzes to avoid double counting
             if (!taskHasQuiz && !assignedTaskIds.contains(taskId)) {
               assignedTaskIds.add(taskId);
             }
@@ -184,7 +178,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
         }
       }
 
-      // Get existing progress records
       final response = await supabase
           .from('student_task_progress')
           .select(
@@ -193,7 +186,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
           .eq('student_id', userId)
           .order('updated_at', ascending: false);
 
-      // Handle case where there's no progress data yet
       if (response.isEmpty &&
           assignedTaskIds.isEmpty &&
           assignedQuizIds.isEmpty) {
@@ -209,8 +201,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
         return;
       }
 
-      // Get quiz submissions to check which quizzes are completed
-      // Include both quizzes linked through tasks and quizzes directly linked via quiz_id
       final quizSubmissions = await supabase
           .from('student_submissions')
           .select(
@@ -222,13 +212,11 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
       for (var submission in quizSubmissions) {
         final assignment = submission['assignments'] as Map<String, dynamic>?;
         if (assignment != null) {
-          // Check for quizzes directly linked via quiz_id in assignment
           final directQuizId = assignment['quiz_id'] as String?;
           if (directQuizId != null && directQuizId.isNotEmpty) {
             completedQuizIds.add(directQuizId);
           }
 
-          // Check for quizzes linked through tasks
           final task = assignment['tasks'] as Map<String, dynamic>?;
           if (task != null) {
             final quizzes = task['quizzes'] as List?;
@@ -254,7 +242,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
       Set<String> completedTaskIds = {};
       Set<String> pendingTaskIds = {};
 
-      // Process existing progress records
       for (var row in response) {
         final taskId = row['task_id'] as String?;
         if (taskId == null) continue;
@@ -272,10 +259,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
           if (latest == null || updated.isAfter(latest)) latest = updated;
         }
 
-        // collect last 5 normalized scores
         if (maxScore > 0) scores.add(score / maxScore);
 
-        // Track completed vs pending tasks
         if (row['completed'] == true) {
           completedTaskIds.add(taskId);
         } else {
@@ -283,8 +268,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
         }
       }
 
-      // Filter out tasks with quizzes from pending/completed task counts
-      // (they're counted via their quizzes)
       Set<String> pendingTasksWithoutQuizzes =
           pendingTaskIds.where((id) => !tasksWithQuizzes.contains(id)).toSet();
       Set<String> completedTasksWithoutQuizzes =
@@ -292,17 +275,14 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               .where((id) => !tasksWithQuizzes.contains(id))
               .toSet();
 
-      // Count newly assigned tasks (without quizzes) that haven't been started yet
       int newPendingTasks = 0;
       for (var taskId in assignedTaskIds) {
-        // assignedTaskIds already excludes tasks with quizzes, so we can count all
         if (!completedTasksWithoutQuizzes.contains(taskId) &&
             !pendingTasksWithoutQuizzes.contains(taskId)) {
           newPendingTasks++;
         }
       }
 
-      // Count newly assigned quizzes that haven't been taken yet
       int newPendingQuizzes = 0;
       for (var quizId in assignedQuizIds) {
         if (!completedQuizIds.contains(quizId)) {
@@ -310,14 +290,11 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
         }
       }
 
-      // Total pending = existing pending tasks (without quizzes) + newly assigned tasks (without quizzes) + newly assigned quizzes
-      // We don't separately count "tasks with quizzes" because they're already counted via their quizzes
       int totalPendingCount =
           pendingTasksWithoutQuizzes.length +
           newPendingTasks +
           newPendingQuizzes;
 
-      // Total completed = completed tasks (without quizzes) + completed quizzes
       int totalCompletedCount =
           completedTasksWithoutQuizzes.length + completedQuizIds.length;
 
@@ -343,7 +320,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
       final authUserId = supabase.auth.currentUser?.id;
       if (authUserId == null) return;
 
-      // Get student.id from students by user_id
       final studentRow =
           await supabase
               .from('students')
@@ -353,7 +329,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
 
       if (studentRow == null) return;
 
-      // Badges: count submissions with score ratio >= 0.8
       final submissions = await supabase
           .from('student_submissions')
           .select('score, max_score')
@@ -368,7 +343,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
         }
       }
 
-      // Level display - store number separately
       String levelText = 'N/A';
       String levelNumberDisplay = 'N/A';
       final levelId = studentRow['current_reading_level_id'] as String?;
@@ -426,7 +400,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     final showLoading = _isLoading || !_minimumLoadingTimeElapsed;
 
     return Scaffold(
-      backgroundColor: _surface.withOpacity(0.97),
+      backgroundColor: _surface,
       body: SafeArea(
         child:
             showLoading
@@ -463,8 +437,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                                 const SizedBox(height: 30),
                                 _buildProgressSection(),
                                 const SizedBox(height: 30),
-                                // _buildQuickAccessSection(context),
-                                // const SizedBox(height: 20),
                                 _buildMyGradesCard(context),
                                 const SizedBox(height: 30),
                                 _buildRecentActivitiesSection(context),
@@ -586,8 +558,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               _secondaryColor.withOpacity(0.8),
             ],
             icon: Icons.check_circle_outline,
-            iconColor: Colors.white,
-            textColor: Colors.white,
+            iconColor: _onPrimaryColor,
+            textColor: _onPrimaryColor,
           ),
           const SizedBox(width: 16),
           StudentDashboardHorizontalCard(
@@ -598,8 +570,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               _primaryColor.withOpacity(0.4),
             ],
             icon: Icons.pending_actions,
-            iconColor: Colors.white,
-            textColor: Colors.white,
+            iconColor: _onPrimaryColor,
+            textColor: _onPrimaryColor,
           ),
           const SizedBox(width: 16),
           StudentDashboardHorizontalCard(
@@ -607,8 +579,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             value: _badgesCount.toString(),
             gradientColors: [_secondaryColor, _secondaryColor.withOpacity(0.6)],
             icon: Icons.emoji_events_outlined,
-            iconColor: Colors.white,
-            textColor: Colors.white,
+            iconColor: _onPrimaryColor,
+            textColor: _onPrimaryColor,
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const StudentBadgesPage()),
@@ -618,14 +590,14 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
           const SizedBox(width: 16),
           StudentDashboardHorizontalCard(
             title: "Level",
-            value: _levelNumber, // Change from _levelDisplay to _levelNumber
+            value: _levelNumber,
             gradientColors: [
               _primaryColor.withOpacity(0.6),
               _secondaryColor.withOpacity(0.4),
             ],
             icon: Icons.star_border,
-            iconColor: Colors.white,
-            textColor: Colors.white,
+            iconColor: _onPrimaryColor,
+            textColor: _onPrimaryColor,
           ),
           const SizedBox(width: 4),
         ],
@@ -681,10 +653,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
           ),
           const SizedBox(height: 24),
 
-          // Progress Visuals Row
           Row(
             children: [
-              // Circular Progress Indicator
               Column(
                 children: [
                   CircularPercentIndicator(
@@ -729,7 +699,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                               ? Colors.green.withOpacity(0.1)
                               : percent >= 0.4
                               ? Colors.orange.withOpacity(0.1)
-                              : Colors.red.withOpacity(0.1),
+                              : _errorColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -746,16 +716,13 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                                 ? Colors.green
                                 : percent >= 0.4
                                 ? Colors.orange
-                                : Colors.red,
+                                : _errorColor,
                       ),
                     ),
                   ),
                 ],
               ),
-
               const SizedBox(width: 24),
-
-              // Trend Chart
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -775,10 +742,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               ),
             ],
           ),
-
           const SizedBox(height: 24),
 
-          // Stats Grid - UPDATED HERE
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -792,19 +757,19 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                   Icons.check_circle,
                   "Completed",
                   _completedTasks.toString(),
-                  Colors.green, // Green for Completed
+                  Colors.green,
                 ),
                 _progressStat(
                   Icons.check,
                   "Correct",
                   _totalCorrect.toString(),
-                  Colors.green, // Changed to green for Correct
+                  Colors.green,
                 ),
                 _progressStat(
                   Icons.close,
                   "Wrong",
                   _totalWrong.toString(),
-                  Colors.redAccent,
+                  _errorColor,
                 ),
                 _progressStat(
                   Icons.timer,
@@ -872,7 +837,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
         const SizedBox(height: 4),
         Text(
           label,
-          style: TextStyle(fontSize: 12, color: _primaryColor.withOpacity(0.6)),
+          style: TextStyle(fontSize: 12, color: _onSurfaceVariant),
         ),
       ],
     );
@@ -998,7 +963,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               getDotPainter: (spot, percent, barData, index) {
                 return FlDotCirclePainter(
                   radius: 4,
-                  color: Colors.white,
+                  color: _onPrimaryColor,
                   strokeWidth: 2,
                   strokeColor: _primaryColor,
                 );
@@ -1030,7 +995,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               return touchedSpots.map((spot) {
                 return LineTooltipItem(
                   'Score: ${(spot.y * 100).toStringAsFixed(1)}%',
-                  const TextStyle(color: Colors.white),
+                  TextStyle(color: _onPrimaryColor),
                 );
               }).toList();
             },
@@ -1039,101 +1004,6 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
       ),
     );
   }
-
-  // Widget _buildQuickAccessSection(BuildContext context) {
-  //   return Container(
-  //     decoration: BoxDecoration(
-  //       borderRadius: BorderRadius.circular(20),
-  //       boxShadow: [
-  //         BoxShadow(
-  //           color: _primaryColor.withOpacity(0.15),
-  //           blurRadius: 15,
-  //           offset: const Offset(0, 5),
-  //         ),
-  //       ],
-  //     ),
-  //     child: ClipRRect(
-  //       borderRadius: BorderRadius.circular(20),
-  //       child: Material(
-  //         child: InkWell(
-  //           onTap: () {
-  //             Navigator.push(
-  //               context,
-  //               MaterialPageRoute(
-  //                 builder: (_) => const EnhancedReadingLevelPage(),
-  //               ),
-  //             );
-  //           },
-  //           child: Container(
-  //             padding: const EdgeInsets.all(24),
-  //             decoration: BoxDecoration(
-  //               gradient: LinearGradient(
-  //                 begin: Alignment.topLeft,
-  //                 end: Alignment.bottomRight,
-  //                 colors: [_primaryColor, _primaryColor.withOpacity(0.8)],
-  //               ),
-  //             ),
-  //             child: Row(
-  //               children: [
-  //                 Container(
-  //                   padding: const EdgeInsets.all(16),
-  //                   decoration: BoxDecoration(
-  //                     color: Colors.white.withOpacity(0.2),
-  //                     borderRadius: BorderRadius.circular(16),
-  //                   ),
-  //                   child: const Icon(
-  //                     Icons.book_rounded,
-  //                     color: Colors.white,
-  //                     size: 36,
-  //                   ),
-  //                 ),
-  //                 // const SizedBox(width: 20),
-  //                 // Expanded(
-  //                 //   child: Column(
-  //                 //     crossAxisAlignment: CrossAxisAlignment.start,
-  //                 //     children: [
-  //                 //       Text(
-  //                 //         'Reading Materials',
-  //                 //         style: TextStyle(
-  //                 //           fontSize: 20,
-  //                 //           fontWeight: FontWeight.bold,
-  //                 //           color: Colors.white,
-  //                 //           letterSpacing: -0.5,
-  //                 //         ),
-  //                 //       ),
-  //                 //       const SizedBox(height: 8),
-  //                 //       Text(
-  //                 //         'Continue your reading journey with assigned materials',
-  //                 //         style: TextStyle(
-  //                 //           fontSize: 14,
-  //                 //           color: Colors.white.withOpacity(0.9),
-  //                 //         ),
-  //                 //         maxLines: 2,
-  //                 //         overflow: TextOverflow.ellipsis,
-  //                 //       ),
-  //                 //     ],
-  //                 //   ),
-  //                 // ),
-  //                 Container(
-  //                   padding: const EdgeInsets.all(8),
-  //                   decoration: BoxDecoration(
-  //                     color: Colors.white.withOpacity(0.2),
-  //                     shape: BoxShape.circle,
-  //                   ),
-  //                   child: const Icon(
-  //                     Icons.arrow_forward_ios_rounded,
-  //                     color: Colors.white,
-  //                     size: 20,
-  //                   ),
-  //                 ),
-  //               ],
-  //             ),
-  //           ),
-  //         ),
-  //       ),
-  //     ),
-  //   );
-  // }
 
   Widget _buildMyGradesCard(BuildContext context) {
     return Container(
@@ -1171,7 +1041,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: _onPrimaryColor.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: const Icon(
@@ -1190,7 +1060,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: _onPrimaryColor,
                             letterSpacing: -0.5,
                           ),
                         ),
@@ -1199,7 +1069,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                           'View detailed scores, quiz results, and performance analytics',
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.white.withOpacity(0.9),
+                            color: _onPrimaryColor.withOpacity(0.9),
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -1210,7 +1080,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: _onPrimaryColor.withOpacity(0.2),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -1272,39 +1142,11 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               "Complete reading materials and quizzes to see your activities here.",
               style: TextStyle(
                 fontSize: 14,
-                color: _primaryColor.withOpacity(0.7),
+                color: _onSurfaceVariant,
                 height: 1.5,
               ),
               textAlign: TextAlign.center,
             ),
-            // const SizedBox(height: 20),
-            // ElevatedButton(
-            //   onPressed: () {
-            //     Navigator.push(
-            //       context,
-            //       MaterialPageRoute(
-            //         builder: (_) => const StudentClassPage(),
-            //         // Add this line to maintain the bottom navigation
-            //         maintainState: true,
-            //         fullscreenDialog: false,
-            //       ),
-            //     );
-            //   },
-            //   style: ElevatedButton.styleFrom(
-            //     backgroundColor: _primaryColor,
-            //     foregroundColor: Colors.white,
-            //     padding: const EdgeInsets.symmetric(
-            //       horizontal: 32,
-            //       vertical: 14,
-            //     ),
-            //     shape: RoundedRectangleBorder(
-            //       borderRadius: BorderRadius.circular(12),
-            //     ),
-            //     elevation: 2,
-            //     shadowColor: _primaryColor.withOpacity(0.3),
-            //   ),
-            //   child: const Text('Start Learning Now'),
-            // ),
           ],
         ),
       );

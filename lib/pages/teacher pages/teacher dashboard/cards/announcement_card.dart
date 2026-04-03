@@ -27,6 +27,7 @@ class AnnouncementCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
       elevation: 1,
+      color: colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
@@ -83,7 +84,7 @@ class AnnouncementCard extends StatelessWidget {
                       Row(
                         children: [
                           Text(
-                            announcement.displayDate, // Use displayDate instead of formattedDate
+                            announcement.displayDate,
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: colorScheme.onSurface.withOpacity(0.6),
                             ),
@@ -113,26 +114,30 @@ class AnnouncementCard extends StatelessWidget {
                       Icons.more_vert,
                       color: colorScheme.onSurface.withOpacity(0.5),
                     ),
+                    color: colorScheme.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     itemBuilder: (context) => [
                       if (onEdit != null)
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'edit',
                           child: Row(
                             children: [
-                              Icon(Icons.edit_outlined, size: 20),
-                              SizedBox(width: 8),
-                              Text('Edit'),
+                              Icon(Icons.edit_outlined, size: 20, color: colorScheme.primary),
+                              const SizedBox(width: 8),
+                              Text('Edit', style: TextStyle(color: colorScheme.onSurface)),
                             ],
                           ),
                         ),
                       if (onDelete != null)
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'delete',
                           child: Row(
                             children: [
-                              Icon(Icons.delete_outline, size: 20),
-                              SizedBox(width: 8),
-                              Text('Delete'),
+                              Icon(Icons.delete_outline, size: 20, color: colorScheme.error),
+                              const SizedBox(width: 8),
+                              Text('Delete', style: TextStyle(color: colorScheme.error)),
                             ],
                           ),
                         ),

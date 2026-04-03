@@ -91,11 +91,14 @@ class _StudentClassPageState extends State<StudentClassPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Scaffold(
-      backgroundColor: const Color(0xFFFCEEEE),
-
+      backgroundColor: colorScheme.surface,
       body: RefreshIndicator(
         onRefresh: _refresh,
+        color: colorScheme.primary,
+        backgroundColor: colorScheme.surface,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Column(
@@ -147,7 +150,6 @@ class _StudentClassPageState extends State<StudentClassPage> {
   }
 
   Future<void> _joinClass(String classCode) async {
-    // Show loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -157,7 +159,6 @@ class _StudentClassPageState extends State<StudentClassPage> {
     try {
       final res = await ClassroomService.joinClass(classCode);
 
-      // Remove loading dialog
       if (!mounted) return;
       Navigator.pop(context);
 
@@ -166,10 +167,8 @@ class _StudentClassPageState extends State<StudentClassPage> {
         _classCodeController.clear();
         await _refresh();
       } else {
-        // Show error based on API response
         final errorMessage = res['message'] ?? "Failed to join class";
 
-        // Handle specific error messages
         String userFriendlyMessage = errorMessage;
         if (errorMessage.toLowerCase().contains('not found') ||
             errorMessage.toLowerCase().contains('invalid') ||
@@ -186,7 +185,6 @@ class _StudentClassPageState extends State<StudentClassPage> {
         _showErrorSnackBar(userFriendlyMessage);
       }
     } catch (e) {
-      // Handle network/connection errors
       if (mounted) Navigator.pop(context);
 
       String errorMessage =
@@ -210,10 +208,11 @@ class _StudentClassPageState extends State<StudentClassPage> {
   }
 
   void _showSnackBar(String message, {required bool isSuccess}) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor:
-            isSuccess ? Colors.green.shade600 : Colors.red.shade600,
+        backgroundColor: isSuccess ? Colors.green.shade600 : colorScheme.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
@@ -237,17 +236,16 @@ class _StudentClassPageState extends State<StudentClassPage> {
             ),
           ],
         ),
-        duration: const Duration(seconds: 4), // Longer duration for errors
-        action:
-            !isSuccess
-                ? SnackBarAction(
-                  label: 'Dismiss',
-                  textColor: Colors.white,
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                  },
-                )
-                : null,
+        duration: const Duration(seconds: 4),
+        action: !isSuccess
+            ? SnackBarAction(
+                label: 'Dismiss',
+                textColor: Colors.white,
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                },
+              )
+            : null,
       ),
     );
   }
@@ -260,11 +258,13 @@ class _ErrorWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Center(
       child: Text(
         errorMessage,
         style: TextStyle(
-          color: Theme.of(context).colorScheme.error,
+          color: colorScheme.error,
           fontSize: 16,
         ),
         textAlign: TextAlign.center,
@@ -313,8 +313,11 @@ class JoinClassDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      backgroundColor: colorScheme.surface,
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -337,14 +340,17 @@ class JoinClassDialog extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: Colors.deepPurple.shade700,
+                  color: colorScheme.primary,
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 "Enter the class code your teacher gave you.",
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, color: Colors.black87),
+                style: TextStyle(
+                  fontSize: 15,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 24),
               _buildCodeTextField(context),
@@ -358,33 +364,43 @@ class JoinClassDialog extends StatelessWidget {
   }
 
   Widget _buildCodeTextField(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return TextField(
       controller: controller,
       textCapitalization: TextCapitalization.characters,
       textAlign: TextAlign.center,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 20,
         letterSpacing: 2.5,
         fontWeight: FontWeight.bold,
+        color: colorScheme.onSurface,
       ),
       decoration: InputDecoration(
         hintText: "ABCD1234",
         hintStyle: TextStyle(
           fontSize: 18,
-          color: Colors.grey[500],
+          color: colorScheme.onSurfaceVariant.withOpacity(0.6),
           letterSpacing: 2,
         ),
         prefixIcon: Icon(
           Icons.school,
-          color: Theme.of(context).colorScheme.primary,
+          color: colorScheme.primary,
         ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: colorScheme.outline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.5)),
+        ),
         filled: true,
-        fillColor: Colors.deepPurple.shade50,
+        fillColor: colorScheme.primaryContainer.withOpacity(0.3),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
           borderSide: BorderSide(
-            color: Theme.of(context).colorScheme.primary,
+            color: colorScheme.primary,
             width: 2,
           ),
         ),
@@ -393,17 +409,19 @@ class JoinClassDialog extends StatelessWidget {
   }
 
   Widget _buildActionButtons(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _buildCancelButton(context),
+        _buildCancelButton(context, colorScheme),
         const SizedBox(width: 8),
-        _buildJoinButton(context),
+        _buildJoinButton(context, colorScheme),
       ],
     );
   }
 
-  Widget _buildCancelButton(BuildContext context) {
+  Widget _buildCancelButton(BuildContext context, ColorScheme colorScheme) {
     return ElevatedButton.icon(
       onPressed: () {
         controller.clear();
@@ -412,15 +430,15 @@ class JoinClassDialog extends StatelessWidget {
       icon: const Icon(Icons.cancel),
       label: const Text("Cancel"),
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.grey.shade300,
-        foregroundColor: Colors.black87,
+        backgroundColor: colorScheme.surfaceVariant,
+        foregroundColor: colorScheme.onSurfaceVariant,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       ),
     );
   }
 
-  Widget _buildJoinButton(BuildContext context) {
+  Widget _buildJoinButton(BuildContext context, ColorScheme colorScheme) {
     return ElevatedButton.icon(
       icon: const Icon(Icons.check_circle),
       onPressed: () {
@@ -434,8 +452,8 @@ class JoinClassDialog extends StatelessWidget {
         style: TextStyle(fontWeight: FontWeight.bold),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       ),
@@ -448,8 +466,11 @@ class _LoadingDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: colorScheme.surface,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -463,9 +484,9 @@ class _LoadingDialog extends StatelessWidget {
             Text(
               "Verifying Class Code...",
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                  ),
             ),
           ],
         ),

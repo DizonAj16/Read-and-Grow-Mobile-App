@@ -377,7 +377,7 @@ class _EnhancedReadingLevelPageState extends State<EnhancedReadingLevelPage>
           children: [
             // Progress Header with Gradient
             Container(
-              padding: const EdgeInsets.fromLTRB(20, 40, 20, 20),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
@@ -390,51 +390,6 @@ class _EnhancedReadingLevelPageState extends State<EnhancedReadingLevelPage>
               ),
               child: Column(
                 children: [
-                  // Page Title
-                  Row(
-                    children: [
-                      Icon(
-                        isClassContext ? Icons.class_ : Icons.school,
-                        color: onPrimaryColor.withOpacity(0.9),
-                        size: 24,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          pageTitle,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: onPrimaryColor.withOpacity(0.95),
-                          ),
-                        ),
-                      ),
-                      if (isClassContext)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: onPrimaryColor.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: onPrimaryColor.withOpacity(0.3),
-                            ),
-                          ),
-                          child: Text(
-                            'Class View',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: onPrimaryColor,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
                   // Level Title
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -455,24 +410,6 @@ class _EnhancedReadingLevelPageState extends State<EnhancedReadingLevelPage>
                     ),
                   ),
                   const SizedBox(height: 12),
-
-                  // Level Description
-                  Text(
-                    currentLevel!['description'] ??
-                        'Improve your reading skills',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: onPrimaryColor.withOpacity(0.85),
-                      height: 1.4,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Progress Container
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -490,8 +427,8 @@ class _EnhancedReadingLevelPageState extends State<EnhancedReadingLevelPage>
                           children: [
                             Text(
                               isClassContext
-                                  ? 'Class Materials Progress'
-                                  : 'Overall Progress',
+                                  ? 'Reading Progress'
+                                  : 'Reading Progress',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,

@@ -20,33 +20,29 @@ class EmptyClassesWidget extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: colorScheme.surface,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.blue.shade50.withOpacity(0.5),
+              color: colorScheme.primary.withOpacity(0.1),
               blurRadius: 16,
               spreadRadius: 2,
               offset: const Offset(0, 4),
             ),
           ],
-          border: Border.all(color: Colors.blue.shade100, width: 1.5),
+          border: Border.all(
+            color: colorScheme.primary.withOpacity(0.2),
+            width: 1.5,
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Animation Section
             _buildEmptyAnimation(),
-
-            // Title Section
-            _buildTitleText(),
+            _buildTitleText(colorScheme),
             const SizedBox(height: 12),
-
-            // Description Section
-            _buildDescriptionText(),
+            _buildDescriptionText(colorScheme),
             const SizedBox(height: 12),
-
-            // Action Buttons Section
             _buildActionButtons(theme, colorScheme),
           ],
         ),
@@ -66,20 +62,20 @@ class EmptyClassesWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildTitleText() {
+  Widget _buildTitleText(ColorScheme colorScheme) {
     return Text(
       "No Classrooms Yet!",
       style: TextStyle(
         fontSize: 24,
         fontWeight: FontWeight.w800,
-        color: Colors.deepPurple.shade700,
+        color: colorScheme.primary,
         height: 1.3,
       ),
       textAlign: TextAlign.center,
     );
   }
 
-  Widget _buildDescriptionText() {
+  Widget _buildDescriptionText(ColorScheme colorScheme) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Text(
@@ -87,7 +83,7 @@ class EmptyClassesWidget extends StatelessWidget {
         '"Join Class" button below! 👇',
         style: TextStyle(
           fontSize: 16,
-          color: Colors.grey.shade700,
+          color: colorScheme.onSurfaceVariant,
           height: 1.5,
         ),
         textAlign: TextAlign.center,
@@ -98,7 +94,6 @@ class EmptyClassesWidget extends StatelessWidget {
   Widget _buildActionButtons(ThemeData theme, ColorScheme colorScheme) {
     return Column(
       children: [
-        // Join Class Button
         ElevatedButton.icon(
           onPressed: onJoinClassPressed,
           icon: const Icon(Icons.school, size: 22),
@@ -108,7 +103,7 @@ class EmptyClassesWidget extends StatelessWidget {
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: colorScheme.primary,
-            foregroundColor: Colors.white,
+            foregroundColor: colorScheme.onPrimary,
             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -117,11 +112,13 @@ class EmptyClassesWidget extends StatelessWidget {
             shadowColor: colorScheme.primary.withOpacity(0.3),
           ),
         ),
-
-        // Refresh Button
         TextButton.icon(
           onPressed: onRefreshPressed,
-          icon: Icon(Icons.refresh, color: colorScheme.primary, size: 20),
+          icon: Icon(
+            Icons.refresh,
+            color: colorScheme.primary,
+            size: 20,
+          ),
           label: Text(
             "Try Again",
             style: TextStyle(

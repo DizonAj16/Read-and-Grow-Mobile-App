@@ -278,16 +278,18 @@ class _ClassContentScreenState extends State<ClassContentScreen> {
   }
 
   void _showErrorSnackbar(String message) {
+      final colorScheme = Theme.of(context).colorScheme;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: Theme.of(context).colorScheme.primary,
+      backgroundColor: colorScheme.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         content: Row(
           children: [
-            const Icon(Icons.error_outline, color: Colors.white),
+          Icon(Icons.error_outline, color: colorScheme.onError),
             const SizedBox(width: 8),
-            Text(message, style: const TextStyle(color: Colors.white)),
+          Text(message, style: TextStyle(color: colorScheme.onError)),
           ],
         ),
       ),
@@ -299,7 +301,7 @@ class _ClassContentScreenState extends State<ClassContentScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: colorScheme.primary.withOpacity(0.05),
+      backgroundColor: colorScheme.surfaceVariant,
       body: Column(
         children: [
           _ClassContentHeader(colorScheme: colorScheme),
@@ -789,13 +791,7 @@ class _ClassContentHeader extends StatelessWidget {
         width: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              colorScheme.primary,
-              Color.alphaBlend(
-                colorScheme.primary.withOpacity(0.7),
-                Colors.red.shade900,
-              ),
-            ],
+            colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.7)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -809,7 +805,6 @@ class _ClassContentHeader extends StatelessWidget {
                 color: colorScheme.onPrimary,
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                fontFamily: 'ComicNeue',
                 shadows: [
                   Shadow(
                     color: Colors.black26,
@@ -998,6 +993,8 @@ class _ClassContentEmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+        final colorScheme = Theme.of(context).colorScheme;
+
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.7,
       child: Column(
@@ -1009,21 +1006,20 @@ class _ClassContentEmptyView extends StatelessWidget {
             "No lessons assigned yet!",
             style: TextStyle(
               fontSize: 22,
-              color: Theme.of(context).colorScheme.primary,
+              color: colorScheme.primary,
               fontWeight: FontWeight.bold,
               fontFamily: 'ComicNeue',
             ),
           ),
           const SizedBox(height: 10),
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 40),
             child: Text(
               'Your teacher will assign lessons and quizzes here soon',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey,
-                fontFamily: 'ComicNeue',
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
           ),
