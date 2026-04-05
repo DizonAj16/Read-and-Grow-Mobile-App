@@ -1,10 +1,11 @@
-import 'package:deped_reading_app_laravel/pages/student%20pages/student%20class%20pages/tabs/lesson_reader_page.dart';
-import 'package:deped_reading_app_laravel/pages/student%20pages/student%20class%20pages/tabs/student_essay_page.dart';
-import 'package:deped_reading_app_laravel/pages/student%20pages/student%20class%20pages/tabs/student_quiz_pages.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter_custom_clippers/flutter_custom_clippers.dart';
+
+import 'lesson_reader_page.dart';
+import 'student_essay_page.dart';
+import 'student_quiz_pages.dart';
 
 class ClassContentScreen extends StatefulWidget {
   final String classRoomId;

@@ -5,7 +5,8 @@ import 'package:video_player/video_player.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:deped_reading_app_laravel/api/comprehension_quiz_service.dart';
-import 'package:deped_reading_app_laravel/pages/student%20pages/student%20class%20pages/tabs/student_quiz_pages.dart';
+
+import 'student_quiz_pages.dart';
 
 class LessonReaderPage extends StatefulWidget {
   final String taskId;

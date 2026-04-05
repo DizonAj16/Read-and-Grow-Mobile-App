@@ -1,8 +1,8 @@
 import 'package:deped_reading_app_laravel/api/classroom_service.dart';
-import 'package:deped_reading_app_laravel/pages/student%20pages/student%20class%20pages/tabs/student_quiz_pages.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../utils/database_helpers.dart';
+import 'student class pages/classroom tabs/student_quiz_pages.dart';
 
 class StudentQuizzesPage extends StatefulWidget {
   final String studentId;

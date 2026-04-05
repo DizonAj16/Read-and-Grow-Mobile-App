@@ -1,12 +1,14 @@
 import 'package:deped_reading_app_laravel/api/reading_materials_service.dart';
 import 'package:deped_reading_app_laravel/pages/student%20pages/enhanced_reading_level_page.dart';
-import 'package:deped_reading_app_laravel/pages/student%20pages/student%20class%20pages/tabs/materials_page.dart';
-import 'package:deped_reading_app_laravel/pages/student%20pages/student%20class%20pages/tabs/student_announcements_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'tabs/list_of_quiz_and_lessons.dart';
-import 'tabs/student_list_page.dart';
-import 'tabs/teacher_info_page.dart';
+
+import 'classroom tabs/list_of_quiz_and_lessons.dart';
+import 'classroom tabs/materials_page.dart';
+import 'classroom tabs/student_announcements_screen.dart';
+import 'classroom tabs/student_list_page.dart';
+import 'classroom tabs/teacher_info_page.dart';
+
 
 class ClassDetailsPage extends StatefulWidget {
   final String classId;
