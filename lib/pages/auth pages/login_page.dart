@@ -19,10 +19,7 @@ enum LoginType { universal, student, teacher, parent, admin }
 class LoginPage extends StatefulWidget {
   final LoginType loginType;
 
-  const LoginPage({
-    super.key,
-    this.loginType = LoginType.universal,
-  });
+  const LoginPage({super.key, this.loginType = LoginType.universal});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -55,8 +52,12 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.primary,
-        iconTheme: IconThemeData(color: Theme.of(context).colorScheme.onPrimary),
-        actions: [ThemeToggleButton(iconColor: Theme.of(context).colorScheme.onPrimary)],
+        iconTheme: IconThemeData(
+          color: Theme.of(context).colorScheme.onPrimary,
+        ),
+        actions: [
+          ThemeToggleButton(iconColor: Theme.of(context).colorScheme.onPrimary),
+        ],
       ),
       body: Stack(
         children: [
@@ -86,7 +87,8 @@ class _LoginPageState extends State<LoginPage> {
   // ────────────────────────────────────────────────
 
   Widget _buildBackground(BuildContext context) {
-    final showImageBg = widget.loginType == LoginType.universal ||
+    final showImageBg =
+        widget.loginType == LoginType.universal ||
         widget.loginType == LoginType.student ||
         widget.loginType == LoginType.teacher;
 
@@ -139,18 +141,18 @@ class _LoginPageState extends State<LoginPage> {
           Text(
             _config.title,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
           Text(
             _config.subtitle,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.white.withOpacity(0.92),
-                  fontStyle: FontStyle.italic,
-                ),
+              color: Colors.white.withOpacity(0.92),
+              fontStyle: FontStyle.italic,
+            ),
             textAlign: TextAlign.center,
           ),
         ],
@@ -177,12 +179,20 @@ class _LoginPageState extends State<LoginPage> {
               children: [
                 const Text(
                   "Login Instruction",
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15.5),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15.5,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   _config.instructionText,
-                  style: const TextStyle(color: Colors.white70, height: 1.35, fontSize: 14),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    height: 1.35,
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),
@@ -196,18 +206,19 @@ class _LoginPageState extends State<LoginPage> {
     return CircleAvatar(
       radius: 76,
       backgroundColor: Colors.white.withOpacity(0.92),
-      child: _config.iconAsset != null
-          ? Image.asset(
-              _config.iconAsset!,
-              width: _config.iconSize,
-              height: _config.iconSize,
-              fit: BoxFit.contain,
-            )
-          : Icon(
-              _config.icon,
-              size: _config.iconSize,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+      child:
+          _config.iconAsset != null
+              ? Image.asset(
+                _config.iconAsset!,
+                width: _config.iconSize,
+                height: _config.iconSize,
+                fit: BoxFit.contain,
+              )
+              : Icon(
+                _config.icon,
+                size: _config.iconSize,
+                color: Theme.of(context).colorScheme.primary,
+              ),
     );
   }
 
@@ -233,7 +244,10 @@ class _LoginPageState extends State<LoginPage> {
         padding: const EdgeInsets.fromLTRB(28, 32, 28, 40),
         child: Form(
           key: _formKey,
-          autovalidateMode: _autoValidate ? AutovalidateMode.always : AutovalidateMode.disabled,
+          autovalidateMode:
+              _autoValidate
+                  ? AutovalidateMode.always
+                  : AutovalidateMode.disabled,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -242,7 +256,11 @@ class _LoginPageState extends State<LoginPage> {
               PasswordTextField(
                 labelText: 'Password',
                 controller: _passwordCtrl,
-                validator: (v) => (v?.trim().isEmpty ?? true) ? 'Password is required' : null,
+                validator:
+                    (v) =>
+                        (v?.trim().isEmpty ?? true)
+                            ? 'Password is required'
+                            : null,
               ),
               const SizedBox(height: 8),
               _buildForgotPasswordLink(context),
@@ -268,7 +286,6 @@ class _LoginPageState extends State<LoginPage> {
       textInputAction: TextInputAction.next,
       decoration: InputDecoration(
         labelText: _config.inputLabel,
-        hintText: _config.inputHint,
         prefixIcon: Icon(_config.inputIcon),
         filled: true,
         fillColor: Colors.grey.withOpacity(0.08),
@@ -276,7 +293,34 @@ class _LoginPageState extends State<LoginPage> {
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 20,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.primary,
+            width: 2,
+          ),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide(color: Colors.red, width: 2),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide(color: Colors.red, width: 2),
+        ),
+        errorStyle: TextStyle(
+          color: Colors.red,
+          fontWeight: FontWeight.normal,
+          fontSize: 13,
+        ),
       ),
       validator: _validateInput,
     );
@@ -290,9 +334,8 @@ class _LoginPageState extends State<LoginPage> {
         child: Text(
           'Forgot Password?',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w600,
-              ),
+            color: Theme.of(context).colorScheme.primary,
+          ),
         ),
       ),
     );
@@ -302,7 +345,10 @@ class _LoginPageState extends State<LoginPage> {
     return Column(
       children: [
         const Divider(height: 32),
-        const Text("or", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+        const Text(
+          "or",
+          style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 16),
         const Text(
           "Don't have an account? Sign up below:",
@@ -314,14 +360,22 @@ class _LoginPageState extends State<LoginPage> {
           label: "Sign up as Student",
           iconPath: 'assets/icons/graduating-student.png',
           color: Theme.of(context).colorScheme.primary,
-          onTap: () => Navigator.push(context, PageTransition(page: const StudentSignUpPage())),
+          onTap:
+              () => Navigator.push(
+                context,
+                PageTransition(page: const StudentSignUpPage()),
+              ),
         ),
         const SizedBox(height: 12),
         _SignUpOptionButton(
           label: "Sign up as Teacher",
           iconPath: 'assets/icons/teacher.png',
           color: Theme.of(context).colorScheme.secondary,
-          onTap: () => Navigator.push(context, PageTransition(page: const TeacherSignUpPage())),
+          onTap:
+              () => Navigator.push(
+                context,
+                PageTransition(page: const TeacherSignUpPage()),
+              ),
         ),
         const SizedBox(height: 12),
         _SignUpOptionButton(
@@ -329,7 +383,11 @@ class _LoginPageState extends State<LoginPage> {
           icon: const Icon(Icons.family_restroom, size: 30),
           color: Colors.purple.shade700,
           textColor: Colors.white,
-          onTap: () => Navigator.push(context, PageTransition(page: const ParentSignUpPage())),
+          onTap:
+              () => Navigator.push(
+                context,
+                PageTransition(page: const ParentSignUpPage()),
+              ),
         ),
       ],
     );
@@ -341,12 +399,18 @@ class _LoginPageState extends State<LoginPage> {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primary.withOpacity(0.06),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.12)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.help_outline_rounded, size: 20, color: Theme.of(context).colorScheme.primary),
+          Icon(
+            Icons.help_outline_rounded,
+            size: 20,
+            color: Theme.of(context).colorScheme.primary,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -354,12 +418,19 @@ class _LoginPageState extends State<LoginPage> {
               children: [
                 Text(
                   _config.helpTitle,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _config.helpText,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
@@ -406,71 +477,69 @@ class _LoginPageState extends State<LoginPage> {
         errorLower.contains('incorrect password')) {
       return 'Incorrect username or password. Please try again.';
     }
-    
-    if (errorLower.contains('email not confirmed') || 
+
+    if (errorLower.contains('email not confirmed') ||
         errorLower.contains('email not verified')) {
       return 'Please verify your email address before logging in. Check your inbox for a verification link.';
     }
-    
+
     if (errorLower.contains('user not found')) {
       return 'No account found with these credentials. Please check your username/email or sign up.';
     }
-    
+
     // Account status errors
     if (errorLower.contains('pending approval')) {
       return 'Your account is pending approval. You will receive an email once approved.';
     }
-    
-    if (errorLower.contains('deactivated') || 
-        errorLower.contains('inactive')) {
+
+    if (errorLower.contains('deactivated') || errorLower.contains('inactive')) {
       return 'This account has been deactivated. Please contact an administrator for assistance.';
     }
-    
+
     if (errorLower.contains('not active')) {
       return 'Your account is not active. Please contact support for assistance.';
     }
-    
+
     // Network and connection errors
-    if (errorLower.contains('network') || 
+    if (errorLower.contains('network') ||
         errorLower.contains('connection') ||
         errorLower.contains('timeout') ||
         errorLower.contains('failed to connect')) {
       return 'Unable to connect to the server. Please check your internet connection and try again.';
     }
-    
+
     // Server errors
-    if (errorLower.contains('500') || 
+    if (errorLower.contains('500') ||
         errorLower.contains('internal server error')) {
       return 'Our server encountered an issue. Please try again in a few minutes.';
     }
-    
-    if (errorLower.contains('503') || 
+
+    if (errorLower.contains('503') ||
         errorLower.contains('service unavailable')) {
       return 'The service is temporarily unavailable. Please try again later.';
     }
-    
+
     // Rate limiting
-    if (errorLower.contains('too many requests') || 
+    if (errorLower.contains('too many requests') ||
         errorLower.contains('rate limit')) {
       return 'Too many login attempts. Please wait a few minutes before trying again.';
     }
-    
+
     // Session errors
-    if (errorLower.contains('session') || 
-        errorLower.contains('token')) {
+    if (errorLower.contains('session') || errorLower.contains('token')) {
       return 'Session error. Please try logging in again.';
     }
-    
+
     // Validation errors
-    if (errorLower.contains('invalid email') || 
+    if (errorLower.contains('invalid email') ||
         errorLower.contains('email format')) {
       return 'Please enter a valid email address.';
     }
-    
+
     if (errorLower.contains('password too weak')) {
       return 'Your password does not meet security requirements. Please reset your password.';
     }
-    
+
     // Default fallback - hide technical details from users
     return 'Unable to sign in. Please check your credentials and try again, or contact support if the problem persists.';
   }
@@ -509,7 +578,7 @@ class _LoginPageState extends State<LoginPage> {
       _navigateToDashboard(role, user['id']);
     } catch (e) {
       if (!mounted) return;
-      
+
       // Close loading overlay
       if (Navigator.canPop(context)) {
         Navigator.pop(context);
@@ -517,12 +586,9 @@ class _LoginPageState extends State<LoginPage> {
 
       // Convert technical error to user-friendly message
       final errorMessage = _getUserFriendlyErrorMessage(e.toString());
-      
-      _showErrorDialog(
-        title: 'Sign In Failed',
-        message: errorMessage,
-      );
-      
+
+      _showErrorDialog(title: 'Sign In Failed', message: errorMessage);
+
       debugPrint('Login error details: $e');
     }
   }
@@ -530,51 +596,62 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _showForgotPasswordDialog() async {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Reset Password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Forgot your password?',
-              style: TextStyle(fontWeight: FontWeight.bold),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-            const SizedBox(height: 12),
-            Text(
-              _config.forgotPasswordMessage,
-              style: TextStyle(color: Colors.grey.shade700),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.contact_support, color: Theme.of(context).colorScheme.primary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _config.contactMessage,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-                    ),
+            title: const Text('Reset Password'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Forgot your password?',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _config.forgotPasswordMessage,
+                  style: TextStyle(color: Colors.grey.shade700),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ],
-              ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.contact_support,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _config.contactMessage,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -582,25 +659,32 @@ class _LoginPageState extends State<LoginPage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Lottie.asset('assets/animation/success.json', width: 120, height: 120),
-            const SizedBox(height: 20),
-            const Text(
-              'Login Successful!',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+      builder:
+          (_) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Welcome back!',
-              style: TextStyle(color: Colors.grey.shade600),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Lottie.asset(
+                  'assets/animation/success.json',
+                  width: 120,
+                  height: 120,
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Login Successful!',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Welcome back!',
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
     );
 
     await Future.delayed(const Duration(milliseconds: 2200));
@@ -620,7 +704,8 @@ class _LoginPageState extends State<LoginPage> {
       debugPrint("Unknown role: $role");
       _showErrorDialog(
         title: 'Login Error',
-        message: 'Unable to determine your account type. Please contact support.',
+        message:
+            'Unable to determine your account type. Please contact support.',
       );
       return;
     }
@@ -636,70 +721,86 @@ class _LoginPageState extends State<LoginPage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => Center(
-        child: Material(
-          type: MaterialType.transparency,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-            margin: const EdgeInsets.symmetric(horizontal: 40),
-            decoration: BoxDecoration(
-              color: Colors.black87,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Lottie.asset(
-                  'assets/animation/loading_rainbow.json', 
-                  width: 90, 
-                  height: 90,
-                  errorBuilder: (context, error, stackTrace) => 
-                      const CircularProgressIndicator(color: Colors.white),
+      builder:
+          (_) => Center(
+            child: Material(
+              type: MaterialType.transparency,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 24,
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white, 
-                    fontSize: 16, 
-                    fontWeight: FontWeight.w600,
-                    decoration: TextDecoration.none,
-                  ),
+                margin: const EdgeInsets.symmetric(horizontal: 40),
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(20),
                 ),
-              ],
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Lottie.asset(
+                      'assets/animation/loading_rainbow.json',
+                      width: 90,
+                      height: 90,
+                      errorBuilder:
+                          (context, error, stackTrace) =>
+                              const CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      message,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
     );
   }
 
   void _showErrorDialog({required String title, required String message}) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(Icons.error_rounded, color: Theme.of(context).colorScheme.error, size: 32),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
+      builder:
+          (_) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-          ],
-        ),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: Navigator.of(context).pop,
-            child: const Text('OK'),
+            title: Row(
+              children: [
+                Icon(
+                  Icons.error_rounded,
+                  color: Theme.of(context).colorScheme.error,
+                  size: 32,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: Navigator.of(context).pop,
+                child: const Text('OK'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 }
@@ -743,8 +844,10 @@ class LoginRoleConfig {
     this.helpTitle = 'Need help?',
     this.helpText = '',
     this.showInstructionBanner = false,
-    this.forgotPasswordMessage = 'Please contact your administrator to reset your password.',
-    this.contactMessage = 'For assistance, please contact your school administrator.',
+    this.forgotPasswordMessage =
+        'Please contact your administrator to reset your password.',
+    this.contactMessage =
+        'For assistance, please contact your school administrator.',
   });
 
   factory LoginRoleConfig.forType(LoginType type) {
@@ -762,10 +865,12 @@ class LoginRoleConfig {
           validationMessage: 'Username or email is required',
           showSignupSection: true,
           showInstructionBanner: true,
-          instructionText: 'You can use either your plain username\nor username@student.app',
+          instructionText:
+              'You can use either your plain username\nor username@student.app',
           helpTitle: 'Login formats',
           helpText: '• juandelacruz\n• juandelacruz@student.app',
-          forgotPasswordMessage: 'If you forgot your password, please contact your teacher or school administrator to reset it.',
+          forgotPasswordMessage:
+              'If you forgot your password, please contact your teacher or school administrator to reset it.',
           contactMessage: 'Your teacher can help you reset your password.',
         );
 
@@ -783,11 +888,14 @@ class LoginRoleConfig {
           validationMessage: 'Email is required',
           showSignupSection: true,
           showInstructionBanner: true,
-          instructionText: 'Use your registered email address\n(username@gmail.com)',
+          instructionText:
+              'Use your registered email address\n(username@gmail.com)',
           helpTitle: 'Example',
           helpText: 'juandelacruz@gmail.com',
-          forgotPasswordMessage: 'If you forgot your password, use the "Forgot Password" option in your email provider or contact your school administrator.',
-          contactMessage: 'Contact your school IT department for password assistance.',
+          forgotPasswordMessage:
+              'If you forgot your password, use the "Forgot Password" option in your email provider or contact your school administrator.',
+          contactMessage:
+              'Contact your school IT department for password assistance.',
         );
 
       case LoginType.parent:
@@ -805,9 +913,12 @@ class LoginRoleConfig {
           showInstructionBanner: true,
           instructionText: 'Use your assigned email\n(username@parent.app)',
           helpTitle: 'Credentials',
-          helpText: 'Contact your school admin if you don\'t have login details.',
-          forgotPasswordMessage: 'Parent accounts require administrator assistance for password resets.',
-          contactMessage: 'Please contact your child\'s school administrator for password assistance.',
+          helpText:
+              'Contact your school admin if you don\'t have login details.',
+          forgotPasswordMessage:
+              'Parent accounts require administrator assistance for password resets.',
+          contactMessage:
+              'Please contact your child\'s school administrator for password assistance.',
         );
 
       case LoginType.admin:
@@ -825,12 +936,13 @@ class LoginRoleConfig {
           showInstructionBanner: false,
           helpTitle: 'Security Note',
           helpText: 'Access is strictly limited to authorized personnel.',
-          forgotPasswordMessage: 'Please contact the system administrator for password reset assistance.',
+          forgotPasswordMessage:
+              'Please contact the system administrator for password reset assistance.',
           contactMessage: 'Contact the primary system administrator for help.',
         );
 
       case LoginType.universal:
-      return LoginRoleConfig(
+        return LoginRoleConfig(
           title: 'Login',
           subtitle: 'Sign in to your account',
           icon: Icons.login,
@@ -843,7 +955,8 @@ class LoginRoleConfig {
           showInstructionBanner: false,
           helpTitle: 'Need help?',
           helpText: 'Use your username or registered email address.',
-          forgotPasswordMessage: 'If you forgot your password, please contact your school administrator.',
+          forgotPasswordMessage:
+              'If you forgot your password, please contact your school administrator.',
           contactMessage: 'For assistance, please contact support.',
         );
     }
@@ -875,7 +988,8 @@ class _SignUpOptionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: onTap,
-      icon: icon ??
+      icon:
+          icon ??
           (iconPath != null
               ? Image.asset(iconPath!, width: 30, height: 30)
               : const Icon(Icons.person_add)),

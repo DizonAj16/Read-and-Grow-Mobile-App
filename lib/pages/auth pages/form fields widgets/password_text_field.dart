@@ -40,9 +40,8 @@ class _PasswordTextFieldState extends State<PasswordTextField> {
           fontStyle: FontStyle.italic,
           color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
         ),
-        labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface),
         filled: true,
-        fillColor: const Color.fromARGB(52, 158, 158, 158),
+        fillColor: Colors.grey.withOpacity(0.08),
         prefixIcon: Icon(
           Icons.lock,
           color: Theme.of(context).colorScheme.onSurface,
@@ -59,7 +58,7 @@ class _PasswordTextFieldState extends State<PasswordTextField> {
           },
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(

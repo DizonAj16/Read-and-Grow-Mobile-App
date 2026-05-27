@@ -2725,114 +2725,94 @@ class _TeacherReadingMaterialsPageState
           child: Column(
             children: [
               if (widget.classId != null && _className != null)
-                Container(
-                  padding: EdgeInsets.all(isMobile ? 12 : 16),
-                  color: Colors.blue[50],
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.class_rounded,
-                        color: Colors.blue[700],
-                        size: isMobile ? 18 : 20,
-                      ),
-                      SizedBox(width: isMobile ? 8 : 12),
-                      Expanded(
-                        child: Text(
-                          'Classroom: $_className',
-                          style: TextStyle(
-                            color: Colors.blue[700],
-                            fontSize: isMobile ? 14 : 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              Expanded(
-                child:
-                    _isLoading
-                        ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              CircularProgressIndicator(
-                                color: primaryColor,
-                                strokeWidth: 2.5,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                widget.classId != null
-                                    ? 'Loading Classroom Materials...'
-                                    : 'Loading Materials...',
-                                style: TextStyle(
-                                  fontSize: isMobile ? 14 : 16,
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.w500,
+                Expanded(
+                  child:
+                      _isLoading
+                          ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CircularProgressIndicator(
+                                  color: primaryColor,
+                                  strokeWidth: 2.5,
                                 ),
-                              ),
-                            ],
-                          ),
-                        )
-                        : RefreshIndicator(
-                          onRefresh: _handleRefresh,
-                          color: primaryColor,
-                          backgroundColor: Colors.white,
-                          child:
-                              _materials.isEmpty
-                                  ? Center(
-                                    child: Padding(
-                                      padding: EdgeInsets.all(
-                                        isMobile ? 24 : 32,
-                                      ),
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.library_books_outlined,
-                                            size: isMobile ? 60 : 80,
-                                            color: Colors.grey[400],
-                                          ),
-                                          SizedBox(height: isMobile ? 16 : 24),
-                                          Text(
-                                            widget.classId != null
-                                                ? 'No Classroom Materials Yet'
-                                                : 'No Reading Materials Yet',
-                                            style: TextStyle(
-                                              fontSize: isMobile ? 16 : 18,
-                                              color: Colors.grey[600],
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                          SizedBox(height: isMobile ? 8 : 12),
-                                          Text(
-                                            widget.classId != null
-                                                ? 'Tap + to upload or assign materials'
-                                                : 'Tap + to upload your first material',
-                                            style: TextStyle(
-                                              fontSize: isMobile ? 12 : 14,
-                                              color: Colors.grey[500],
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  )
-                                  : ListView.builder(
-                                    controller: _scrollController,
-                                    padding: EdgeInsets.all(isMobile ? 12 : 16),
-                                    itemCount: _materials.length,
-                                    itemBuilder:
-                                        (_, i) => _buildMaterialItem(
-                                          _materials[i],
-                                          i,
-                                        ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  widget.classId != null
+                                      ? 'Loading Classroom Materials...'
+                                      : 'Loading Materials...',
+                                  style: TextStyle(
+                                    fontSize: isMobile ? 14 : 16,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
                                   ),
-                        ),
-              ),
+                                ),
+                              ],
+                            ),
+                          )
+                          : RefreshIndicator(
+                            onRefresh: _handleRefresh,
+                            color: primaryColor,
+                            backgroundColor: Colors.white,
+                            child:
+                                _materials.isEmpty
+                                    ? Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(
+                                          isMobile ? 24 : 32,
+                                        ),
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.library_books_outlined,
+                                              size: isMobile ? 60 : 80,
+                                              color: Colors.grey[400],
+                                            ),
+                                            SizedBox(
+                                              height: isMobile ? 16 : 24,
+                                            ),
+                                            Text(
+                                              widget.classId != null
+                                                  ? 'No Classroom Materials Yet'
+                                                  : 'No Reading Materials Yet',
+                                              style: TextStyle(
+                                                fontSize: isMobile ? 16 : 18,
+                                                color: Colors.grey[600],
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            SizedBox(height: isMobile ? 8 : 12),
+                                            Text(
+                                              widget.classId != null
+                                                  ? 'Tap + to upload or assign materials'
+                                                  : 'Tap + to upload your first material',
+                                              style: TextStyle(
+                                                fontSize: isMobile ? 12 : 14,
+                                                color: Colors.grey[500],
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                    : ListView.builder(
+                                      controller: _scrollController,
+                                      padding: EdgeInsets.all(
+                                        isMobile ? 12 : 16,
+                                      ),
+                                      itemCount: _materials.length,
+                                      itemBuilder:
+                                          (_, i) => _buildMaterialItem(
+                                            _materials[i],
+                                            i,
+                                          ),
+                                    ),
+                          ),
+                ),
             ],
           ),
         ),

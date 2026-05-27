@@ -640,12 +640,37 @@ class _StudentSignUpPageState extends State<StudentSignUpPage> {
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
+        hintStyle: const TextStyle(fontStyle: FontStyle.italic, fontSize: 12),
         prefixIcon: Icon(icon),
         filled: true,
         fillColor: Colors.grey.withOpacity(0.06),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.primary,
+            width: 2,
+          ),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide(color: Colors.red, width: 2),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide(color: Colors.red, width: 2),
+        ),
+        errorStyle: TextStyle(
+          color: Colors.red,
+          fontWeight: FontWeight.normal,
+          fontSize: 13,
         ),
       ),
       validator: validator,
